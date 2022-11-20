@@ -36,50 +36,23 @@ record IsQuantity (Q : Set) : Set₁ where
         +-assoc : ∀ ρ π ϕ → ρ + (π + ϕ) ≡ (ρ + π) + ϕ
         +-comm : ∀ ρ π → ρ + π ≡ π + ρ 
         ·-assoc : ∀ ρ π ϕ → ρ · (π · ϕ) ≡ (ρ · π) · ϕ
-        ·-identityₗ : ∀ ρ → one · ρ ≡ ρ 
-        ·-identityᵣ : ∀ ρ → ρ · one ≡ ρ 
-        0-cancelₗ : ∀ ρ → zero · ρ ≡ ρ
-        0-cancelᵣ : ∀ ρ → ρ · zero ≡ ρ
+        -- Are these actually necessary for the theory? 
+        -- It would be nice if quantities could have 0 = 1 in a non-trivial way
+        -- ·-identityₗ : ∀ ρ → one · ρ ≡ ρ 
+        -- ·-identityᵣ : ∀ ρ → ρ · one ≡ ρ 
+        0-cancelₗ : ∀ ρ → zero · ρ ≡ zero 
+        0-cancelᵣ : ∀ ρ → ρ · zero ≡ zero 
         ·-+-distributiveₗ : ∀ ϕ ρ π → ϕ · (ρ + π) ≡ ϕ · ρ + ϕ · π         
         ·-+-distributiveᵣ : ∀ ϕ ρ π → (ρ + π) · ϕ ≡ ρ · ϕ + π · ϕ
+        ≤-refl : ∀ ρ → ρ ≤ ρ
+        -- might also not be needed
+        -- ≤-irrefl : ∀ ρ π → ρ ≤ π → π ≤ ρ → ρ ≡ π
+        ≤-trans : ∀ ρ π ϕ → ρ ≤ π → π ≤ ϕ → ρ ≤ ϕ
         ≤-+ : ∀ ρ π ϕ → ρ ≤ π → ρ + ϕ ≤ π + ϕ
         ≤-·ₗ : ∀ ρ π ϕ → ρ ≤ π → ϕ · ρ ≤ ϕ · π 
         ≤-·ᵣ : ∀ ρ π ϕ → ρ ≤ π → ρ · ϕ ≤ π · ϕ
 ```
 
-
-```agda
-module OneClosure where
-    record IsPartialSemiring (Q : Set) : Set₁ where 
-        infixl 5 _+_ 
-        infixl 7 _·_ 
-        infix 2 _≤_
-        field
-            zero : Q
-            _+_ : Q → Q → Q
-            _·_ : Q → Q → Q 
-            _≤_ : Q → Q → Set
-            +-identity : ∀ ρ → zero + ρ ≡ ρ 
-            +-assoc : ∀ ρ π ϕ → ρ + (π + ϕ) ≡ (ρ + π) + ϕ
-            +-comm : ∀ ρ π → ρ + π ≡ π + ρ 
-            ·-assoc : ∀ ρ π ϕ → ρ · (π · ϕ) ≡ (ρ · π) · ϕ
-            0-cancelₗ : ∀ ρ → zero · ρ ≡ ρ
-            0-cancelᵣ : ∀ ρ → ρ · zero ≡ ρ
-            ·-+-distributiveₗ : ∀ ϕ ρ π → ϕ · (ρ + π) ≡ ϕ · ρ + ϕ · π         
-            ·-+-distributiveᵣ : ∀ ϕ ρ π → (ρ + π) · ϕ ≡ ρ · ϕ + π · ϕ
-            ≤-+ : ∀ ρ π ϕ → ρ ≤ π → ρ + ϕ ≤ π + ϕ
-            ≤-·ₗ : ∀ ρ π ϕ → ρ ≤ π → ϕ · ρ ≤ ϕ · π 
-            ≤-·ᵣ : ∀ ρ π ϕ → ρ ≤ π → ρ · ϕ ≤ π · ϕ
-    
-    module _ (Q : Set) (P : IsPartialSemiring Q) where
-        data OneClosure : Set where 
-            q : Q → OneClosure 
-            one : OneClosure 
-
-        module P = IsPartialSemiring P
-
-        -- TODO: OneClosure definitions and theorems
-```
 
 ```agda
 module Syntax (Var : Set) (Quant : Set) where 
@@ -103,12 +76,6 @@ module Syntax (Var : Set) (Quant : Set) where
 ```
 
 ```agda
-record Module (R : Set) (M : Set) : Set where 
-    field
-        zero : R 
-        _+_ : M → M → M 
-        _·_ : R → M → M 
-
 open import Relation.Binary
 
 module Context (Var : Set) (Quant : Set) (IsQuant : IsQuantity Quant) where 
@@ -135,6 +102,36 @@ module Context (Var : Set) (Quant : Set) (IsQuant : IsQuantity Quant) where
     infixl 5 _+_
     postulate
         _+_ : Context → Context → Context 
+
+```
+
+```agda
+open import Relation.Binary.Definitions
+
+module Substitution (Var : Set) (Quant : Set) (_≟_ : DecidableEquality Var) where
+    open Syntax Var Quant
+
+    open import Relation.Nullary using (does) 
+    open import Data.Bool using (if_then_else_)
+
+    _[_/_] : Term → Term → Var → Term
+    ⋆ [ a / x ] = ⋆
+    mult [ a / x ] = mult
+    (p +ₘ q) [ a / x ] = (p [ a / x ]) +ₘ (q [ a / x ])
+    (p ·ₘ q) [ a / x ] = (p [ a / x ]) ·ₘ (q [ a / x ])
+    (q ₘ) [ a / x ] = q ₘ
+    (⦅[ p ] y ∶ A ⦆⇒ B) [ a / x ] = 
+        if does (x ≟ y) then 
+            ⦅[ p [ a / x ] ] y ∶ (A [ a / x ]) ⦆⇒ B 
+        else 
+            ⦅[ p [ a / x ] ] y ∶ (A [ a / x ]) ⦆⇒ (B [ a / x ])
+    (ƛ[ p ] y ∶ A ⇒ B) [ a / x ] = 
+        if does (x ≟ y) then 
+            ƛ[ p [ a / x ] ] y ∶ (A [ a / x ]) ⇒ B 
+        else 
+            (ƛ[ p [ a / x ] ] y ∶ (A [ a / x ]) ⇒ (B [ a / x ]))
+    (` y) [ a / x ] = if does (x ≟ y) then a else ` y 
+    (s ∙ t) [ a / x ] = (s [ a / x ]) ∙ (t [ a / x ])
 
 ```
 
@@ -202,7 +199,7 @@ module Rules (Var : Set) (Quant : Set) (IsQuant : IsQuantity Quant) where
             ---------------------------- 
             (Γ₁ + Γ₂ + Γ₃) ⊢ (⦅[ p ] x ∶ A ⦆⇒ B) ∶ ⋆ 
 
-
 ```
 
 
+ 
