@@ -48,7 +48,7 @@ record IsQuantity (Q : Set) : Set₁ where
 ```
 
 
-```
+```agda
 module OneClosure where
     record IsPartialSemiring (Q : Set) : Set₁ where 
         infixl 5 _+_ 
@@ -102,7 +102,7 @@ module Syntax (Var : Set) (Quant : Set) where
     
 ```
 
-```
+```agda
 record Module (R : Set) (M : Set) : Set where 
     field
         zero : R 
