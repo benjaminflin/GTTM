@@ -89,15 +89,36 @@ module Context (Var : Set) (Quant : Set) (IsQuant : IsQuantity Quant) where
     data Context : Set where 
         ∅ : Context 
         _,[_]_∶_ : Context → Term → Var → Type → Context
-    
+
+    private
+        variable
+            x y : Var
+            p q r s t : Term
+            S T A B : Type
+            Γ Δ : Context
+
+    data [_]_∶_∈_ : Term → Var → Type → Context → Set where
+        here : [ p ] x ∶ T ∈ (Γ ,[ p ] x ∶ T)
+        there : [ p ] x ∶ T ∈ Γ → x ≢ y → [ p ] x ∶ T ∈ (Γ ,[ q ] y ∶ S)
+
     ⌊_⌋ : Context → PreContext
     ⌊ ∅ ⌋ = ∅ₚ
     ⌊ Δ ,[ q ] v ∶ t ⌋ = ⌊ Δ ⌋ , v ∶ t 
 
     infix 10 _·_
-    _·_ : Quant → Context → Context
-    ρ · ∅ = ∅
-    ρ · (Γ ,[ q ] t ∶ T) = (ρ · Γ) ,[ (ρ ₘ) ·ₘ q ] t ∶ T
+    _·_ : Term → Context → Context
+    p · ∅ = ∅
+    p · (Γ ,[ q ] t ∶ T) = (p · Γ) ,[ p ·ₘ q ] t ∶ T
+
+    open IsQuantity IsQuant using (zero)
+
+    infix 50 𝟘_
+    𝟘_ : Context → Context 
+    𝟘_ = zero ₘ ·_
+
+    data [_]_∶_∈₀_ : Term → Var → Type → Context → Set where
+        here₀ : [ p ] x ∶ T ∈₀ (𝟘 Γ ,[ p ] x ∶ T)
+        there₀ : [ p ] x ∶ T ∈₀ Γ → x ≢ y → [ p ] x ∶ T ∈₀ (Γ ,[ zero ₘ ] y ∶ S)
 
     infixl 5 _+_
     postulate
@@ -137,10 +158,11 @@ module Substitution (Var : Set) (Quant : Set) (_≟_ : DecidableEquality Var) wh
 
 ```agda
 
-module Rules (Var : Set) (Quant : Set) (IsQuant : IsQuantity Quant) where
+module Rules (Var : Set) (_≟_ : DecidableEquality Var) (Quant : Set) (IsQuant : IsQuantity Quant) where
     
     open Syntax Var Quant
     open Context Var Quant IsQuant
+    open Substitution Var Quant _≟_ 
 
     private
         variable
@@ -153,19 +175,23 @@ module Rules (Var : Set) (Quant : Set) (IsQuant : IsQuantity Quant) where
 
     open IsQuantity IsQuant using (_≤_; one; zero)
 
-    infix 50 𝟘_
-    𝟘_ : Context → Context 
-    𝟘_ = zero ·_
-
     data _⊢_∶_ : Context → Term → Type → Set where
         t-var : 
-            -- missing x ∉ ⌊ Γ ⌋
-            --------------------------------
-            (𝟘 Γ ,[ one ₘ ] x ∶ T) ⊢ ` x ∶ T
-        
+            [ one ₘ ] x ∶ T ∈₀ Γ →
+            ----------------------
+            Γ ⊢ ` x ∶ T
+
+        t-mult-type :
+            ------------
+            ∅ ⊢ mult ∶ ⋆
+
+        t-type-type : 
+            ---------
+            ∅ ⊢ ⋆ ∶ ⋆  
+
         t-mult-quant :
             --------------
-            𝟘 Γ ⊢ ρ ₘ ∶ mult
+            ∅ ⊢ ρ ₘ ∶ mult
         
         t-mult-+ :
             Γ₁ ⊢ p ∶ mult →
@@ -198,6 +224,13 @@ module Rules (Var : Set) (Quant : Set) (IsQuant : IsQuantity Quant) where
             ⌊ Γ₁ ⌋ ≡ ⌊ Γ₃ ⌋ →
             ---------------------------- 
             (Γ₁ + Γ₂ + Γ₃) ⊢ (⦅[ p ] x ∶ A ⦆⇒ B) ∶ ⋆ 
+        
+        t-app :
+            Γ₁ ⊢ s ∶ (⦅[ p ] x ∶ A ⦆⇒ B) →
+            Γ₂ ⊢ t ∶ A →
+            ⌊ Γ₁ ⌋ ≡ ⌊ Γ₂ ⌋ →
+            ------------------------------
+            (Γ₁ + p · Γ₂) ⊢ (s ∙ t) ∶ (B [ t / x ])
 
 ```
 
