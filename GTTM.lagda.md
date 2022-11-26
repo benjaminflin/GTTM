@@ -95,7 +95,7 @@ module Context (Var : Set) (Quant : Set) (IsQuant : IsQuantity Quant) where
             x y : Var
             p q r s t : Term
             S T A B : Type
-            Γ Δ : Context
+            Γ Γ₁ Γ₂ Δ : Context
 
     data [_]_∶_∈_ : Term → Var → Type → Context → Set where
         here : [ p ] x ∶ T ∈ (Γ ,[ p ] x ∶ T)
@@ -114,15 +114,50 @@ module Context (Var : Set) (Quant : Set) (IsQuant : IsQuantity Quant) where
 
     infix 50 𝟘_
     𝟘_ : Context → Context 
-    𝟘_ = zero ₘ ·_
+    𝟘 ∅ = ∅
+    𝟘 (Γ ,[ p ] x ∶ T) = 𝟘 Γ ,[ zero ₘ ] x ∶ T
+
+    𝟘-idempotent : ∀ Γ → 𝟘 (𝟘 Γ) ≡ 𝟘 Γ
+    𝟘-idempotent ∅ = refl
+    𝟘-idempotent (Γ ,[ p ] x ∶ T) = cong (_,[ zero ₘ ] x ∶ T) (𝟘-idempotent Γ)
+
 
     data [_]_∶_∈₀_ : Term → Var → Type → Context → Set where
-        here₀ : [ p ] x ∶ T ∈₀ (𝟘 Γ ,[ p ] x ∶ T)
+        here₀ : 𝟘 Γ ≡ Γ → [ p ] x ∶ T ∈₀ (Γ ,[ p ] x ∶ T)
         there₀ : [ p ] x ∶ T ∈₀ Γ → x ≢ y → [ p ] x ∶ T ∈₀ (Γ ,[ zero ₘ ] y ∶ S)
 
+    weaken-∈ : ∀ {Γ} → [ p ] x ∶ T ∈₀ Γ → [ p ] x ∶ T ∈ Γ
+    weaken-∈ {Γ = _ ,[ p ] x ∶ T} (here₀ _) = here
+    weaken-∈ {Γ = _ ,[ zero ₘ ] x ∶ T} (there₀ ∈₀Γ x≢y) = there (weaken-∈ ∈₀Γ) x≢y 
+
+    ext : (∀ {p x A} → [ p ] x ∶ A ∈ Γ → [ p ] x ∶ A ∈ Δ) →
+        ∀ {x y p q A B} → [ p ] x ∶ A ∈ (Γ ,[ q ] y ∶ B) → [ p ] x ∶ A ∈ (Δ ,[ q ] y ∶ B)
+    ext μ here = here
+    ext μ (there ∈Γ x≢y) = there (μ ∈Γ) x≢y
+
+    ext₀ : (∀ {p x A} → [ p ] x ∶ A ∈₀ Γ → [ p ] x ∶ A ∈₀ Δ) → 
+        (∀ {Γ Δ} → 𝟘 Γ ≡ Γ → 𝟘 Δ ≡ Δ) → 
+        ∀ {x y p q A B} → [ p ] x ∶ A ∈₀ (Γ ,[ q ] y ∶ B) → [ p ] x ∶ A ∈₀ (Δ ,[ q ] y ∶ B)
+    ext₀ μ τ (here₀ 𝟘Γ) = here₀ (τ 𝟘Γ) 
+    ext₀ μ τ (there₀ ∈Γ x≢y) = there₀ (μ ∈Γ) x≢y 
+
     infixl 5 _+_
+    _+_ : Context → Context → Context 
+    ∅ + ∅ = ∅
+    _ + _ = {!   !}
+
+    +-∅-lemmaₗ : Γ₁ + Γ₂ ≡ ∅ → Γ₁ ≡ ∅ 
+    +-∅-lemmaₗ = {!   !}
+
+    +-∅-lemmaᵣ :  Γ₁ + Γ₂ ≡ ∅ → Γ₂ ≡ ∅ 
+    +-∅-lemmaᵣ = {!   !}
+
+    open import Data.Product
     postulate
-        _+_ : Context → Context → Context 
+        context-split-lemma : [ p ] x ∶ B ∈ Γ → Γ₁ + Γ₂ ≡ Γ → ⌊ Γ₁ ⌋ ≡ ⌊ Γ₂ ⌋ → ∃[ q ] ∃[ r ] ( ([ q ] x ∶ A ∈ Γ₁) × ([ r ] x ∶ A ∈ Γ₂) × (q +ₘ r ≡ p) )
+
+
+
 
 ```
 
@@ -170,7 +205,7 @@ module Rules (Var : Set) (_≟_ : DecidableEquality Var) (Quant : Set) (IsQuant 
             ρ : Quant
             s t a b : Term
             p q r : Term
-            A B S T : Type
+            A B S T R : Type
             Γ Γ₁ Γ₂ Γ₃ : Context 
 
     open IsQuantity IsQuant using (_≤_; one; zero)
@@ -182,30 +217,34 @@ module Rules (Var : Set) (_≟_ : DecidableEquality Var) (Quant : Set) (IsQuant 
             Γ ⊢ ` x ∶ T
 
         t-mult-type :
+            Γ ≡ 𝟘 Γ →
             ------------
-            ∅ ⊢ mult ∶ ⋆
+            Γ ⊢ mult ∶ ⋆
 
         t-type-type : 
+            Γ ≡ 𝟘 Γ →
             ---------
-            ∅ ⊢ ⋆ ∶ ⋆  
+            Γ ⊢ ⋆ ∶ ⋆  
 
         t-mult-quant :
             --------------
-            ∅ ⊢ ρ ₘ ∶ mult
+            𝟘 Γ ⊢ ρ ₘ ∶ mult
         
         t-mult-+ :
             Γ₁ ⊢ p ∶ mult →
             Γ₂ ⊢ q ∶ mult →
             ⌊ Γ₁ ⌋ ≡ ⌊ Γ₂ ⌋ →
+            (Γ₁ + Γ₂) ≡ Γ →
             -----------------
-            (Γ₁ + Γ₂) ⊢ p +ₘ q ∶ mult
+            Γ ⊢ p +ₘ q ∶ mult
 
         t-mult-· :
             Γ₁ ⊢ p ∶ mult →
             Γ₂ ⊢ q ∶ mult →
             ⌊ Γ₁ ⌋ ≡ ⌊ Γ₂ ⌋ →
+            (Γ₁ + Γ₂) ≡ Γ →
             -----------------
-            (Γ₁ + Γ₂) ⊢ p ·ₘ q ∶ mult 
+            Γ ⊢ p ·ₘ q ∶ mult 
 
         t-lam : 
             (Γ₁ ,[ p ] x ∶ A) ⊢ a ∶ B →
@@ -222,17 +261,108 @@ module Rules (Var : Set) (_≟_ : DecidableEquality Var) (Quant : Set) (IsQuant 
             (Γ₃ ,[ p ] x ∶ A) ⊢ B ∶ ⋆ →
             ⌊ Γ₁ ⌋ ≡ ⌊ Γ₂ ⌋ →
             ⌊ Γ₁ ⌋ ≡ ⌊ Γ₃ ⌋ →
+            (Γ₁ + Γ₂ + Γ₃) ≡ Γ → 
             ---------------------------- 
-            (Γ₁ + Γ₂ + Γ₃) ⊢ (⦅[ p ] x ∶ A ⦆⇒ B) ∶ ⋆ 
+            Γ ⊢ (⦅[ p ] x ∶ A ⦆⇒ B) ∶ ⋆ 
         
         t-app :
             Γ₁ ⊢ s ∶ (⦅[ p ] x ∶ A ⦆⇒ B) →
             Γ₂ ⊢ t ∶ A →
             ⌊ Γ₁ ⌋ ≡ ⌊ Γ₂ ⌋ →
+            (Γ₁ + p · Γ₂) ≡ Γ →
+            R ≡ (B [ t / x ]) →
             ------------------------------
-            (Γ₁ + p · Γ₂) ⊢ (s ∙ t) ∶ (B [ t / x ])
+            Γ ⊢ (s ∙ t) ∶ R 
 
 ```
 
 
+```agda
+module Normalization (Var : Set) (_≟_ : DecidableEquality Var) (Quant : Set) (IsQuant : IsQuantity Quant) where
+
+    open Syntax Var Quant
+    open Context Var Quant IsQuant
+    open Substitution Var Quant _≟_ 
+    open Rules Var _≟_ Quant IsQuant 
+    
+    open import Relation.Nullary
+    open import Data.Product
+
+    private
+        variable
+            x y : Var
+            p p′ q q′ r s t u v a b c : Term
+            S T A B : Type
+            Γ Γ₁ Γ₂ Δ : Context
+
+    module Q = IsQuantity IsQuant
+    
+    infix 2 _⟶_
+    data _⟶_ : Term → Term → Set where 
+        β-reduce : ∀ p x A a b → (ƛ[ p ] x ∶ A ⇒ a) ∙ b ⟶ a [ b / x ]
+        +-known : ∀ ρ π → ((ρ ₘ) +ₘ (π ₘ)) ⟶ (ρ Q.+ π) ₘ
+        ·-known : ∀ ρ π → ((ρ ₘ) ·ₘ (π ₘ)) ⟶ (ρ Q.· π) ₘ
+        +-0ₗ : ∀ p → (Q.zero ₘ) +ₘ p ⟶ p  
+        +-0ᵣ : ∀ p → p +ₘ (Q.zero ₘ) ⟶ p  
+        ·-0ₗ : ∀ p → (Q.zero ₘ) ·ₘ p ⟶ (Q.zero ₘ)  
+        ·-0ᵣ : ∀ p → p ·ₘ (Q.zero ₘ) ⟶ (Q.zero ₘ)
+
+    infix 2 _▸_
+    data _▸_ : Term → Term → Set where 
+        refl-▸ : s ▸ s 
+        trans-▸ : a ▸ b → (b⟶c : b ⟶ c) → a ▸ c   
+
+    trans-▸′ : a ▸ b → b ▸ c → a ▸ c
+    trans-▸′ a▸b refl-▸ = a▸b 
+    trans-▸′ a▸b (trans-▸ b▸c b⟶c) = trans-▸ (trans-▸′ a▸b b▸c) b⟶c
+
+    admissible-subst : [ p ] x ∶ B ∈ Γ → Γ ⊢ a ∶ A → ∅ ⊢ b ∶ B → ∅ ⊢ a [ b / x ] ∶ A
+    admissible-subst {a = ⋆} _ (t-type-type _) _ = t-type-type refl
+    admissible-subst {a = mult} _ (t-mult-type _) _ = t-mult-type refl
+    admissible-subst {a = p +ₘ q} x∈Γ (t-mult-+ ⊢p ⊢q ⌊Γ⌋-≡ Γ-split) ⊢b 
+        with (r , s , x∈Γ₁ , x∈Γ₂ , _) ← context-split-lemma x∈Γ Γ-split ⌊Γ⌋-≡ = 
+        t-mult-+ (admissible-subst x∈Γ₁ ⊢p ⊢b) (admissible-subst x∈Γ₂ ⊢q ⊢b) refl refl
+    admissible-subst {a = p ·ₘ q} x∈Γ (t-mult-· ⊢p ⊢q ⌊Γ⌋-≡ Γ-split) ⊢b 
+        with (r , s , x∈Γ₁ , x∈Γ₂ , _) ← context-split-lemma x∈Γ Γ-split ⌊Γ⌋-≡ =
+        t-mult-· (admissible-subst x∈Γ₁ ⊢p ⊢b) (admissible-subst x∈Γ₂ ⊢q ⊢b) refl refl 
+    admissible-subst {a = ρ ₘ} x∈Γ t-mult-quant ⊢b = t-mult-quant
+    admissible-subst {x = x} {a = ⦅[ p ] y ∶ S ⦆⇒ T} x∈Γ (t-pi ⊢p ⊢A ⊢B ⌊Γ⌋₁₂-≡ ⌊Γ⌋₁₃-≡ Γ-split) ⊢b with x ≟ y 
+    ... | yes refl = {!   !} -- t-pi {!   !} {!   !} {!   !} {!   !} {!   !}
+    ... | no _ = {!   !}
+    admissible-subst {a = Syntax.ƛ[ a ] x ∶ x₁ ⇒ a₁} x∈Γ ⊢a ⊢b = {!   !}
+    admissible-subst {a = Syntax.` x} x∈Γ ⊢a ⊢b = {!   !}
+    admissible-subst {a = a Syntax.∙ a₁} x∈Γ ⊢a ⊢b = {!   !}
+
+```
+
+```agda
+module Admissibility (Var : Set) (_≟_ : DecidableEquality Var) (Quant : Set) (IsQuant : IsQuantity Quant) where
+
+    open Syntax Var Quant
+    open Context Var Quant IsQuant
+    open Substitution Var Quant _≟_ 
+    open Rules Var _≟_ Quant IsQuant 
+
+    private
+        variable
+            x y : Var
+            p q r s t : Term
+            S T A B : Type
+            Γ Δ : Context
+
+    -- rename : 
+    --     (∀ {x p A} → [ p ] x ∶ A ∈₀ Γ → [ p ] x ∶ A ∈₀ Δ) →
+    --     (∀ {Γ Δ} → 𝟘 Γ ≡ Γ → 𝟘 Δ ≡ Δ) → 
+    --     ∀ {t A} → Γ ⊢ t ∶ A → Δ ⊢ t ∶ A
+    -- rename μ τ (t-var ∈₀Γ) = t-var (μ ∈₀Γ)
+    -- rename {Γ = Γ} {Δ = Δ} μ τ t-mult-type rewrite sym (τ {Γ = 𝟘 Γ} {Δ = Δ} (𝟘-idempotent Γ)) = t-mult-type 
+    -- rename μ τ Rules.t-type-type = {!   !}
+    -- rename μ τ Rules.t-mult-quant = {!   !}
+    -- rename μ τ (Rules.t-mult-+ ⊢t ⊢t₁ x) = {!   !}
+    -- rename μ τ (Rules.t-mult-· ⊢t ⊢t₁ x) = {!   !}
+    -- rename μ τ (Rules.t-lam ⊢t ⊢t₁ ⊢t₂ x x₁) = {!   !}
+    -- rename μ τ (Rules.t-pi ⊢t ⊢t₁ ⊢t₂ x x₁) = {!   !}
+    -- rename μ τ (Rules.t-app ⊢t ⊢t₁ x) = {!   !}
+
+```
  
