@@ -162,7 +162,9 @@ module Context (Var : Set) (Quant : Set) (IsQuant : IsQuantity Quant) where
     infix 2 _≤_ 
     data _≤_ : Context → Context → Set where
         ≤-∅ : ∅ ≤ ∅ 
-        ≤-, : Γ₁ ≤ Γ₂ → ρ Qu.≤ ϕ → Γ₁ ,[ ρ ₘ ] x ∶ A ≤ Γ₁ ,[ ϕ ₘ ] x ∶ A
+        ≤-, : Γ₁ ≤ Γ₂ → ρ Qu.≤ ϕ → Γ₁ ,[ ρ ₘ ] x ∶ A ≤ Γ₂ ,[ ϕ ₘ ] x ∶ A
+
+
 
     open import Data.List hiding (_++_)
     dom : Context → List Var  
@@ -173,10 +175,23 @@ module Context (Var : Set) (Quant : Set) (IsQuant : IsQuantity Quant) where
         here : x ∶ A ∈ (Γ ,[ p ] x ∶ A)
         there : x ∶ A ∈ Γ → x ≢ y → x ∶ A ∈ (Γ ,[ p ] y ∶ B)
 
+    ∈-respects-≤ : (x ∶ A ∈ Γ₁) → Γ₁ ≤ Γ₂ → (x ∶ A ∈ Γ₂)
+    ∈-respects-≤ here (≤-, ≤-Γ ρ≤ϕ) = here
+    ∈-respects-≤ (there ∈Γ₁ x≠y) (≤-, ≤-Γ x) = there (∈-respects-≤ ∈Γ₁ ≤-Γ) x≠y
+
+    ∈-respects-≥ : (x ∶ A ∈ Γ₁) → Γ₂ ≤ Γ₁ → (x ∶ A ∈ Γ₂)
+    ∈-respects-≥ here (≤-, ≤-Γ ρ≤ϕ) = here
+    ∈-respects-≥ (there ∈Γ₁ x≠y) (≤-, ≤-Γ x) = there (∈-respects-≥ ∈Γ₁ ≤-Γ) x≠y 
+
+
     open import Data.List.Membership.Propositional 
     open import Relation.Nullary.Negation
     open import Data.List.Relation.Unary.Any renaming (here to hereₗ ; there to thereₗ)
     open import Data.Empty
+
+    ∈-to-∈-dom : x ∶ A ∈ Γ → x ∈ dom Γ  
+    ∈-to-∈-dom here = hereₗ refl
+    ∈-to-∈-dom (there ∈Γ x) = thereₗ (∈-to-∈-dom ∈Γ)
 
     Γ-∈-≡ : x ∶ A ∈ Γ₁ → x ∶ B ∈ Γ₂ → Γ₁ ≡ Γ₂ → A ≡ B 
     Γ-∈-≡ here here refl = refl
@@ -194,6 +209,9 @@ module Context (Var : Set) (Quant : Set) (IsQuant : IsQuantity Quant) where
 
         ∈-≢ : ∀ {x y} {xs : List Var} → x ∉ y ∷ xs → x ≢ y 
         ∈-≢ ∉yxs x=y = ∉yxs (hereₗ x=y)
+
+    ++-injective : Γ₁ ,[ p ] x ∶ A ≡ Γ₂ ,[ q ] y ∶ B → Γ₁ ≡ Γ₂  
+    ++-injective refl = refl 
     
 ```
 
@@ -226,9 +244,9 @@ module Substitution (Var : Set) (Quant : Set) (IsQuant : IsQuantity Quant) (_≟
     (` y) [ a / x ] = if does (x ≟ y) then a else ` y 
     (s ∙ t) [ a / x ] = (s [ a / x ]) ∙ (t [ a / x ])
 
-    _⟦_/_⟧ : Context → Term → Var → Context
-    ∅ ⟦ a / x ⟧ = ∅
-    (Γ ,[ p ] y ∶ A) ⟦ a / x ⟧ = {!   !} -- if does (x ≟ y) then Γ ,[ p ] y : A else {!   !}
+    -- _⟦_/_⟧ : Context → Term → Var → Context
+    -- ∅ ⟦ a / x ⟧ = ∅
+    -- (Γ ,[ p ] y ∶ A) ⟦ a / x ⟧ = {!   !} -- if does (x ≟ y) then Γ ,[ p ] y : A else {!   !}
 
 ```
 
@@ -239,6 +257,7 @@ module Rules (Var : Set) (_≟_ : DecidableEquality Var) (Quant : Set) (IsQuant 
     open Syntax Var Quant
     open Context Var Quant IsQuant
     open Substitution Var Quant IsQuant _≟_ 
+    open import Data.List.Membership.Propositional 
 
     private
         variable
@@ -323,6 +342,7 @@ module Rules (Var : Set) (_≟_ : DecidableEquality Var) (Quant : Set) (IsQuant 
         t-weak :
             (⊢b : Γ₁ ⊢ b ∶ B) →
             (⊢A : Γ₂ ⊢ A ∶ ⋆) →
+            (∉Γ₁ : x ∉ dom Γ₁) →
             ------------------------------
             (Γ₁ ,[ zero ₘ ] x ∶ A) ⊢ b ∶ B
 
@@ -411,15 +431,46 @@ module Admissibility (Var : Set) (_≟_ : DecidableEquality Var) (Quant : Set) (
     open import Data.Empty
 
     open import Data.List.Membership.Propositional 
- 
+    open import Data.List.Relation.Unary.Any renaming (here to hereₗ ; there to thereₗ)
+    open import Relation.Nullary.Negation
+    open import Function.Base
+
     module Q = IsQuantity IsQuant
 
 
+    ⊢x⇒x∈Γ : Γ ⊢ ` x ∶ A → x ∶ A ∈ Γ 
+    ⊢x⇒x∈Γ (Rules.t-var 𝟘Γ) = here 
+    ⊢x⇒x∈Γ (Rules.t-sub ⊢x Γ-≤ Γ₁₂-≡) = ∈-respects-≤ (⊢x⇒x∈Γ ⊢x) Γ-≤ 
+    ⊢x⇒x∈Γ (Rules.t-weak ⊢x ⊢A ∉Γ₁) = 
+        let ih = (⊢x⇒x∈Γ ⊢x) in there ih (contraposition (lem (∈-to-∈-dom ih)) ∉Γ₁) 
+        where
+            lem : ∀ {x y} → x ∈ dom Γ → x ≡ y → y ∈ dom Γ
+            lem ⊢x refl = ⊢x
+        
 
-    subst-admissible-var-lemma : x ∉ dom Γ₂ → Δ ≡ ((Γ₁ ,[ p ] x ∶ A) ++ Γ₂) → Δ ⊢ ` x ∶ B → B ≡ A
-    subst-admissible-var-lemma ∉Γ₂ Δ-≡ (t-var 𝟘Γ) = Γ-∈-≡ here (Γ-++ ∉Γ₂) Δ-≡
-    subst-admissible-var-lemma ∉Γ₂ Δ-≡ (t-sub {Γ₁ = Γ} {Γ₂ = Γ′} ⊢x Γ-≤ Γ₁₂-≡) = subst-admissible-var-lemma {!   !} {!   !} ⊢x
-    subst-admissible-var-lemma ∉Γ₂ Δ-≡ (t-weak {Γ₁ = Γ} {Γ₂ = Γ′} ⊢b ⊢A) = {!   !}
+    subst-admissible-var-sublemma : ∀ {Δ p q x y A B Γ₁ Γ₂} → Δ ,[ p ] x ∶ A ≡ Γ₁ ++ (Γ₂ ,[ q ] y ∶ B) → p ≡ q   
+    subst-admissible-var-sublemma refl = refl
+
+    subst-admissible-var-lemma₁ : x ∶ A ∈ Γ → Γ ⊢ ` x ∶ B → A ≡ B   
+    subst-admissible-var-lemma₁ Context.here (Rules.t-var 𝟘Γ) = refl
+    subst-admissible-var-lemma₁ (Context.there ∈Γ x) (Rules.t-var 𝟘Γ) = ⊥-elim (x refl)
+    subst-admissible-var-lemma₁ ∈Γ (Rules.t-sub ⊢x Γ-≤ Γ₁₂-≡) = subst-admissible-var-lemma₁ (∈-respects-≥ ∈Γ Γ-≤) ⊢x
+    subst-admissible-var-lemma₁ Context.here (Rules.t-weak ⊢x ⊢A ∉Γ) = ⊥-elim (∉Γ ((∈-to-∈-dom ∘ ⊢x⇒x∈Γ) ⊢x)) 
+    subst-admissible-var-lemma₁ (Context.there ∈Γ x≠y) (Rules.t-weak ⊢x ⊢A ∉Γ) = subst-admissible-var-lemma₁ ∈Γ ⊢x 
+
+    subst-admissible-var-lemma₂ : ∀ {Γ₁ p x A} → x ∉ dom Γ₂ → Δ ⊢ ` x ∶ A → (Δ ≡ (Γ₁ ,[ p ] x ∶ A ++ Γ₂)) → Γ₂ ≡ 𝟘 Γ₂ 
+    subst-admissible-var-lemma₂ {Γ₂ = Context.∅} ∉Γ₂ ⊢x Δ-≡ = refl
+    subst-admissible-var-lemma₂ {Γ₂ = Γ₂ Context.,[ q ] y ∶ B} {Γ₁ = Γ₁} {p = p} {x = x} {A = A} ∉Γ₂ (Rules.t-var 𝟘Γ) Δ-≡
+        = ⊥-elim (∉Γ₂ (hereₗ (lem {Γ₁ = Γ₁ ,[ p ] x ∶ A} Δ-≡)))
+        where
+        lem : ∀ {Δ p q x y A B Γ₁ Γ₂} → Δ ,[ p ] x ∶ A ≡ Γ₁ ++ (Γ₂ ,[ q ] y ∶ B) → x ≡ y  
+        lem refl = refl
+    subst-admissible-var-lemma₂ {Γ₂ = Γ₂ Context.,[ q ] y ∶ B} ∉Γ₂ (Rules.t-sub ⊢x Γ-≤ Γ₁₂-≡) Δ-≡ = 
+        subst-admissible-var-lemma₂ ∉Γ₂ ⊢x {!   !} -- harder to prove, going to skip for now
+    subst-admissible-var-lemma₂ {Γ₂ = Γ₂ Context.,[ q ] y ∶ B} {Γ₁ = Γ₁} {p = p} {x = x} {A = A} ∉Γ₂ (Rules.t-weak ⊢x ⊢x₁ ∉Γ₁) Δ-≡ 
+        rewrite subst-admissible-var-sublemma {Γ₁ = Γ₁ ,[ p ] x ∶ A} Δ-≡ = 
+        let ih = subst-admissible-var-lemma₂ (contraposition thereₗ ∉Γ₂) ⊢x (++-injective Δ-≡)
+        in cong (_,[ q ] y ∶ B) ih
 
     subst-admissible : (Γ-≡ : ⌊ Γ₁ ⌋ ≡ ⌊ p · Γ ⌋) → 
                 (Δ ≡ (Γ₁ ,[ p ] x ∶ A ++ Γ₂)) →
@@ -427,8 +478,8 @@ module Admissibility (Var : Set) (_≟_ : DecidableEquality Var) (Quant : Set) (
                 Δ ⊢ b ∶ B → 
                 (Γ₁ + (p · Γ) [ Γ-≡ ] ++ Γ₂) ⊢ (b [ a / x ]) ∶ (B [ a / x ])
     subst-admissible {x = x} {b = b} Γ-≡ Δ-≡ ⊢a (Rules.t-var {x = y} 𝟘Γ) with (x ≟ y) 
-    ... | yes refl = {!   !} -- need to show: A ≡ B ≡ B [ a / x ], Γ₂ = 𝟘Γ₂, p = 0, then can construct result by weakening 
-    ... | no contra = {!   !} -- need to show: p = 0 (since x is not used), and then show ability to carve out x from context
+    ... | yes refl = {!   !} -- need to show: A ≡ B ≡ B [ a / x ], Γ₂ = 𝟘Γ₂, p = 1, Γ₁ = 𝟘Γ₁ then can construct result by weakening 
+    ... | no contra = {!   !} -- need to show: p = 0 (since x is not used), and then show typeability after carving out x from Δ
     subst-admissible Γ-≡ Δ-≡ ⊢a Rules.t-mult-type = {!   !}
     subst-admissible Γ-≡ Δ-≡ ⊢a Rules.t-type-type = {!   !}
     subst-admissible Γ-≡ Δ-≡ ⊢a Rules.t-mult-quant = {!   !}
@@ -438,7 +489,7 @@ module Admissibility (Var : Set) (_≟_ : DecidableEquality Var) (Quant : Set) (
     subst-admissible Γ-≡ Δ-≡ ⊢a (Rules.t-pi ⊢b ⊢b₁ ⊢b₂ Γ₁₂-≡ Γ₁₃-≡ Γ-split) = {!   !}
     subst-admissible Γ-≡ Δ-≡ ⊢a (Rules.t-app ⊢b ⊢b₁ Γ₁₂-≡ Γ-split R-conv) = {!   !}
     subst-admissible Γ-≡ Δ-≡ ⊢a (Rules.t-sub ⊢b Γ-≤ Γ₁₂-≡) = {!   !}
-    subst-admissible Γ-≡ Δ-≡ ⊢a (Rules.t-weak ⊢b ⊢b₁) = {!   !}
+    subst-admissible Γ-≡ Δ-≡ ⊢a (Rules.t-weak ⊢x ⊢A ∉Γ) = {!   !}
 
     -- x∈Γ-lemma : [ p ] x ∶ B ∈ Γ → Γ ⊢ ` x ∶ A → A ≡ B     
     -- x∈Γ-lemma Context.here (Rules.t-var (Context.here₀ x)) = refl
