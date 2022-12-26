@@ -1,17 +1,23 @@
-module GTTM.Syntax (Var : Set) (Quant : Set) where 
+module GTTM.Syntax (Quant : Set) where 
+    
+    open import Data.Nat
 
-    data Term : Set 
+    private
+        variable
+            n n′ : ℕ
 
-    Type : Set
+    data Term : ℕ → Set 
+
+    Type : ℕ → Set
     Type = Term
 
     data Term where
-        ⋆ : Type 
-        mult : Type 
-        _+ₘ_ : Term → Term → Term
-        _·ₘ_ : Term → Term → Term
-        _ₘ : Quant → Term 
-        ⦅[_]_∶_⦆⇒_ : Term → Var → Type → Type → Type 
-        ƛ[_]_∶_⇒_ : Term → Var → Type → Term → Term 
-        `_ : Var → Term 
-        _∙_ : Term → Term → Term
+        ⋆ : Term n 
+        mult : Term n
+        _ₘ : Quant → Term n
+        _+ₘ_ : Term n → Term n → Term n 
+        _·ₘ_ : Term n → Term n → Term n 
+        ⦅[_]∶_⦆⇒_ : Term n → Term n → Term (suc n) → Term n
+        ƛ[_]∶_⇒_ : Term n → Term n → Term (suc n) → Term n
+        `_ : n′ < n → Term n 
+        _∙_ : Term n → Term n → Term n
