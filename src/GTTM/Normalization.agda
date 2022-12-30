@@ -4,23 +4,28 @@ open import GTTM.Quantity
 
 module GTTM.Normalization (Quant : Set) (IsQuant : IsQuantity Quant) where
                 
-    -- open import GTTM.Syntax Var Quant
-    -- open import GTTM.Substitution Var _≟_ Quant IsQuant 
-    -- open import GTTM.Context Var Quant IsQuant 
+
+
+    open import GTTM.Syntax Quant
+    open import GTTM.Substitution Quant IsQuant 
+    open import GTTM.Context Quant IsQuant 
     
-    -- private
-    --     variable
-    --         x y : Var
-    --         p p′ q q′ r s s′ t t′ u v a b b′ c : Term
-    --         ρ ϕ π : Quant
-    --         S S′ T T′ A A′ B : Type
-    --         Γ Γ′ : Context 
+    open import Data.Nat
 
-    --     module Q = IsQuantity IsQuant
+    private
+        variable
+            x y n : ℕ
+            p p′ q q′ r s s′ t t′ u v a b b′ c : Term n
+            ρ ϕ π : Quant
+            S S′ T T′ A A′ B : Type n
+            Γ Γ′ : Context n 
 
-    -- infix 2 _⟶_
-    -- data _⟶_ : Term → Term → Set where 
-    --     β-reduce : t ≡ a [ b / x ] → (ƛ[ p ] x ∶ A ⇒ a) ∙ b ⟶ t 
+        module Q = IsQuantity IsQuant
+
+    infix 2 _⟶_
+    data _⟶_ : Term n → Term n → Set where 
+        -- t ≡ ↓₁ 0 (a [ ↑ 1 0 b / 0 ])
+        β-reduce : t ≡ ↓₁ 0 (s≤s z≤n) (no-var-subst a (no-var-incr {c = 0} {r = 1} b z≤n (s≤s z≤n))) → (ƛ[ p ]∶ A ⇒ a) ∙ b ⟶ t 
     --     -- +-known : ((ρ ₘ) +ₘ (π ₘ)) ⟶ (ρ Q.+ π) ₘ
     --     -- ·-known : ((ρ ₘ) ·ₘ (π ₘ)) ⟶ (ρ Q.· π) ₘ
     --     -- +-0ₗ : (Q.zero ₘ) +ₘ p ⟶ p  

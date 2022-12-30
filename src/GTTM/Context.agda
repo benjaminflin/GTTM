@@ -7,6 +7,7 @@ module GTTM.Context (Quant : Set) (IsQuant : IsQuantity Quant) where
     open import GTTM.Syntax Quant
     open import Data.Nat
     open import Data.Product
+    open import GTTM.Substitution Quant IsQuant
 
     private 
         variable    
@@ -56,25 +57,20 @@ module GTTM.Context (Quant : Set) (IsQuant : IsQuantity Quant) where
     -- samePreContext : (Γ₁₂-≡ : ⌊ Γ₁ ⌋ ≡ ⌊ Γ₂ ⌋) → HasPreContext Γ₁ ⌊ Γ₂ ⌋
     -- samePreContext {Γ₁ = Γ₁} {Γ₂ = Γ₂} Γ₁₂-≡ = subst (HasPreContext Γ₁) Γ₁₂-≡ (hasPreContext Γ₁) 
 
-    infix 10 _·_
-    _·_ : Term n → Context n → Context n
-    p · ∅ = ∅
-    p · (Γ ,[ q ] T) = (p · Γ) ,[ p ·ₘ q ] T
+    
+    private
+        module Q = IsQuantity IsQuant
 
+    infix 50 𝟘_
+    𝟘_ : Context n → Context n
+    𝟘 ∅ = ∅
+    𝟘 (Γ ,[ p ] T) = 𝟘 Γ ,[ Q.zero ₘ ] T
 
-    -- module Qu = IsQuantity IsQuant
-    -- open IsQuantity IsQuant using (zero)
+    𝟘-idempotent : ∀ (Γ : Context n) → 𝟘 (𝟘 Γ) ≡ 𝟘 Γ
+    𝟘-idempotent ∅ = refl
+    𝟘-idempotent (Γ ,[ p ] T) = cong (_,[ Q.zero ₘ ] T) (𝟘-idempotent Γ)
 
-    -- infix 50 𝟘_
-    -- 𝟘_ : Context → Context 
-    -- 𝟘 ∅ = ∅
-    -- 𝟘 (Γ ,[ p ] x ∶ T) = 𝟘 Γ ,[ zero ₘ ] x ∶ T
-
-    -- 𝟘-idempotent : ∀ Γ → 𝟘 (𝟘 Γ) ≡ 𝟘 Γ
-    -- 𝟘-idempotent ∅ = refl
-    -- 𝟘-idempotent (Γ ,[ p ] x ∶ T) = cong (_,[ zero ₘ ] x ∶ T) (𝟘-idempotent Γ)
-
-    -- _++_ : Context → Context → Context
+    -- _++_ : Context n → Context n → Context n
     -- Γ₁ ++ ∅ = Γ₁
     -- Γ₁ ++ (Γ₂ ,[ p ] x ∶ A) = (Γ₁ ++ Γ₂) ,[ p ] x ∶ A
 
