@@ -1,6 +1,7 @@
 module GTTM.Syntax (Quant : Set) where 
     
     open import Data.Nat
+    open import Relation.Binary.PropositionalEquality
 
     private
         variable
@@ -17,7 +18,7 @@ module GTTM.Syntax (Quant : Set) where
         _ₘ : Quant → Term n
         _+ₘ_ : Term n → Term n → Term n 
         _·ₘ_ : Term n → Term n → Term n 
-        ⦅[_]∶_⦆⇒_ : Term n → Term n → Term (suc n) → Term n
-        ƛ[_]∶_⇒_ : Term n → Term n → Term (suc n) → Term n
+        ⦅[_]_∶_⦆⇒_ : Term n → n′ ≡ suc n → Term n → Term n′ → Term n
+        ƛ[_]_∶_⇒_ : Term n → n′ ≡ suc n → Term n → Term n′ → Term n
         `_ : n′ < n → Term n 
         _∙_ : Term n → Term n → Term n
