@@ -1,6 +1,6 @@
 {-# OPTIONS --allow-unsolved-metas #-}
 open import Relation.Binary.Definitions
-open import Relation.Binary.PropositionalEquality
+open import Relation.Binary.PropositionalEquality hiding ([_])
 open import GTTM.Quantity
 
 
@@ -14,274 +14,325 @@ module GTTM.Substitution (Quant : Set) (IsQuant : IsQuantity Quant) where
     open import Function.Base
     open import Data.Product
 
+    open ≡-Reasoning
+
     private
         variable
-            k c n n′ r : ℕ
+            x m k c n n′ r : ℕ
             ρ : Quant
-            p q A B s t : Term n 
-
-    -- ↑′ : (i : ℕ) → (c : ℕ) → Term n → Term (n + i)  
-    -- ↑′ i c ⋆ = ⋆
-    -- ↑′ i c mult = mult
-    -- ↑′ i c (ρ ₘ) = ρ ₘ
-    -- ↑′ i c (p +ₘ q) = (↑′ i c p) +ₘ (↑′ i c q)
-    -- ↑′ i c (p ·ₘ q) = (↑′ i c p) ·ₘ (↑′ i c q)
-    -- ↑′ {n} i c (⦅[ p ]∶ A ⦆⇒ B) = 
-    --     ⦅[ ↑′ i c p ]∶ (↑′ i c A) ⦆⇒ ↑′ i (suc c) B 
-    -- ↑′ {n} i c (ƛ[ p ]∶ A ⇒ B) = ƛ[ ↑′ i c p ]∶ (↑′ i c A) ⇒ ↑′ i (suc c) B 
-    -- ↑′ i c (`_ {n′ = n′} n′<n) with n′ <? c 
-    -- ... | yes _ = ` ≤-stepsʳ i n′<n  
-    -- ... | no _ = ` +-monoˡ-< i n′<n 
-    -- ↑′ i c (s ∙ t) = (↑′ i c s) ∙ (↑′ i c t)
-
-    ↑ : (i : ℕ) → (c : ℕ) → Term n → Term (i + n)  
-    ↑ i c ⋆ = ⋆
-    ↑ i c mult = mult
-    ↑ i c (ρ ₘ) = ρ ₘ 
-    ↑ i c (p +ₘ q) = (↑ i c p) +ₘ (↑ i c q)
-    ↑ i c (p ·ₘ q) = (↑ i c p) ·ₘ (↑ i c q)
-    ↑ {n = n} i c (⦅[ p ] eq ∶ A ⦆⇒ B) = ⦅[ ↑ i c p ] (trans (cong (i +_) eq) (+-suc i n)) ∶ (↑ i c A) ⦆⇒ ↑ i (suc c) B -- ↑ i (suc c) B 
-    ↑ {n = n} i c (ƛ[ p ] eq ∶ A ⇒ B) = ƛ[ ↑ i c p ] (trans (cong (i +_) eq) (+-suc i n)) ∶ (↑ i c A) ⇒ ↑ i (suc c) B -- ↑ i (suc c) B 
-    ↑ i c (`_ {n′ = n′} n′<n) with n′ <? c 
-    ... | yes _ = ` ≤-stepsˡ i n′<n  
-    ... | no _ = ` +-monoʳ-< i n′<n 
-    ↑ i c (s ∙ t) = (↑ i c s) ∙ (↑ i c t) 
+            p q A B s t : Term
+        
+        postulate
+            extensionality : 
+                ∀ {A B : Set} {f g : A → B}
+                → (∀ (x : A) → f x ≡ g x)
+                → f ≡ g
 
 
-    data NoVar : (n : ℕ) → ℕ → Term n → Set where
-        novar-star : NoVar n k ⋆ 
-        novar-mult : NoVar n k mult 
-        novar-quant : NoVar n k (ρ ₘ) 
-        novar-plus : NoVar n k p → NoVar n k q → NoVar n k (p +ₘ q) 
-        novar-times : NoVar n k p → NoVar n k q → NoVar n k (p ·ₘ q) 
-        novar-pi : NoVar n k p → NoVar n k A → (eq : n′ ≡ suc n) → NoVar n′ (suc k) B → NoVar n k (⦅[ p ] eq ∶ A ⦆⇒ B)
-        novar-lam : NoVar n k p → NoVar n k A → (eq : n′ ≡ suc n) → NoVar n′ (suc k) B → NoVar n k (ƛ[ p ] eq ∶ A ⇒ B)
-        novar-var : ∀ n′ → n′ ≢ k → (x : n′ < n) → NoVar n k (` x) 
-        novar-app : NoVar n k s → NoVar n k t → NoVar n k (s ∙ t) 
-    
-    ↓₁ : ∀ {t : Term (suc n)} → (c : ℕ) → c ≤ n → NoVar (suc n) c t → Term n
-    ↓₁ c c≤  novar-star = ⋆
-    ↓₁ c c≤ novar-mult = mult 
-    ↓₁ {t = ρ ₘ} c c≤ novar-quant = ρ ₘ 
-    ↓₁ c c≤  (novar-plus nvp nvq) = ↓₁ c c≤ nvp +ₘ ↓₁ c c≤ nvq 
-    ↓₁ c c≤ (novar-times nvp nvq) = ↓₁ c c≤ nvp ·ₘ ↓₁ c c≤ nvq 
-    ↓₁ c c≤ (novar-pi nvp nvA refl nvB) = ⦅[ ↓₁ c c≤ nvp ] refl ∶ ↓₁ c c≤ nvA ⦆⇒ ↓₁ (suc c) (s≤s c≤) nvB
-    ↓₁ c c≤ (novar-lam nvp nvA refl nvB) = ƛ[ ↓₁ c c≤ nvp ] refl ∶ ↓₁ c c≤ nvA ⇒ ↓₁ (suc c) (s≤s c≤) nvB
-    ↓₁ c c≤ (novar-var n′ n′≢c (s≤s n′<n)) with n′ <? c
-    ↓₁ c c≤ (novar-var n′ n′≢c (s≤s n′<n)) | yes n′<c = ` ≤-trans (≤∧≢⇒< (<⇒≤ n′<c) n′≢c) c≤
-    ↓₁ c c≤ (novar-var zero n′≢c (s≤s n′<n)) | no ¬n′<c  
-        with n′≥c ← ≮⇒≥ ¬n′<c
-        with () ← ≤∧≢⇒< n′≥c (λ c=n → n′≢c (sym c=n))
-    ↓₁ c c≤ (novar-var (suc n′) n′≢c (s≤s n′<n)) | no ¬n′<c = ` n′<n
-    ↓₁ c c≤ (novar-app nvs nvt) = (↓₁ c c≤ nvs) ∙ (↓₁ c c≤ nvt) 
+    Subst : Set
+    Subst = ℕ → Term    
 
-    _⟨_⟩[_/_] : ∀ {m} → Term n → m ≡ n → Term m → ℕ → Term n     
-    ⋆ ⟨ _ ⟩[ a / k ] = ⋆
-    mult ⟨ _ ⟩[ a / k ] = mult
-    (ρ ₘ) ⟨ _ ⟩[ a / k ] = ρ ₘ
-    (p +ₘ q) ⟨ eq ⟩[ a / k ] = (p ⟨ eq ⟩[ a / k ]) +ₘ (q ⟨ eq ⟩[ a / k ])
-    (p ·ₘ q) ⟨ eq ⟩[ a / k ] = (p ⟨ eq ⟩[ a / k ]) ·ₘ (q ⟨ eq ⟩[ a / k ])
-    (⦅[ p ] eq₁ ∶ A ⦆⇒ B) ⟨ eq₂ ⟩[ a / k ] = ⦅[ p ⟨ eq₂ ⟩[ a / k ] ] eq₁ ∶ A ⟨ eq₂ ⟩[ a / k ] ⦆⇒ (B ⟨ trans (cong suc eq₂) (sym eq₁) ⟩[ (↑ 1 0 a) / (suc k) ]) -- (B [ (↑ 1 0 a) / (suc k) ]) -- (B [ (↑ 1 0 a) / (suc k) ])
-    (ƛ[ p ] eq₁ ∶ A ⇒ B) ⟨ eq₂ ⟩[ a / k ] = ƛ[ p ⟨ eq₂ ⟩[ a / k ] ] eq₁ ∶ A ⟨ eq₂ ⟩[ a / k ] ⇒ (B ⟨ trans (cong suc eq₂) (sym eq₁) ⟩[ (↑ 1 0 a) / (suc k) ]) -- ƛ[ p ⟨ eq₂ ⟩[ a / k ] ] ? ∶ A ⟨ eq₂ ⟩[ a / k ] ⇒ {!   !} --  (B [ subst Term (sym eq) (↑ 1 0 a) / (suc k) ])
-    (`_ {n′ = x} s) ⟨ refl ⟩[ a / k ] with x ≟ k 
-    ... | yes _ = a
-    ... | no _ = ` s
-    (s ∙ t) ⟨ eq ⟩[ a / k ] = (s ⟨ eq ⟩[ a / k ]) ∙ (t ⟨ eq ⟩[ a / k ]) 
+    Renaming : Set
+    Renaming = ℕ → ℕ 
 
-    _[_/_] : Term n → Term n → ℕ → Term n     
-    t [ a / x ] = t ⟨ refl ⟩[ a / x ]
+    _·_ : Term → Subst → Subst    
+    (s · σ) zero = s
+    (s · σ) (suc x) = σ x
 
-    m<n⇒m≢n : ∀ {m n} → m < n → m ≢ n 
-    m<n⇒m≢n {m} {n} m<n refl = n≮n m m<n
+    ids : Subst 
+    ids x = ` x
 
-    subst-eq-novar : ∀ {a b c : ℕ} {t : Term a} → (eq : a ≡ b) → NoVar a c t → NoVar b c (subst Term eq t) 
-    subst-eq-novar refl nv = nv 
+    ren : Renaming → Subst
+    ren ξ = ids ∘ ξ   
 
-    no-var-incr : (t : Term n) → k ≤ c → c < r + k → NoVar (r + n) c (↑ r k t)    
-    no-var-incr ⋆ k≤c c<r = novar-star
-    no-var-incr mult k≤c c<r = novar-mult
-    no-var-incr (_ ₘ) k≤c c<r = novar-quant
-    no-var-incr (p +ₘ q) k≤c c<r = novar-plus (no-var-incr p k≤c c<r) (no-var-incr q k≤c c<r)
-    no-var-incr (p ·ₘ q) k≤c c<r = novar-times (no-var-incr p k≤c c<r) (no-var-incr q k≤c c<r)
-    no-var-incr {n = n} {k = k} {c = c} {r = r} (⦅[ p ] refl ∶ A ⦆⇒ B) k≤c c<r = 
-        let novar-B = no-var-incr B (s≤s k≤c) (subst (suc c <_) (sym $ +-suc r k) (s≤s c<r)) in
-        novar-pi (no-var-incr p k≤c c<r) (no-var-incr A k≤c c<r) (+-suc r n) novar-B
-    no-var-incr {n = n} {k = k} {c = c} {r = r} (ƛ[ p ] refl ∶ A ⇒ B) k≤c c<r = 
-        let novar-B = no-var-incr B (s≤s k≤c) (subst (suc c <_) (sym $ +-suc r k) (s≤s c<r)) in 
-        novar-lam (no-var-incr p k≤c c<r) (no-var-incr A k≤c c<r) (+-suc r n) novar-B
-    no-var-incr {n = n} {k = k} {c = c} {r = r} (`_ {n′ = n′} x) k≤c c<r with n′ <? k 
-    ... | yes n′<k = novar-var n′ (m<n⇒m≢n (<-transˡ n′<k k≤c)) (≤-stepsˡ r x)
-    ... | no ¬n′<k with n′≥k ← ≮⇒≥ ¬n′<k rewrite +-suc r n′ = 
-        conv $ novar-var (r + n′) (m<n⇒m≢n (<-transˡ c<r (+-monoʳ-≤ r n′≥k)) ∘ sym) (subst (_≤ r + n) (+-suc r n′) (+-monoʳ-≤ r x))
+    ↑ : Subst
+    ↑ x = ` suc x 
+
+    ext : Renaming → Renaming
+    ext ξ zero = zero
+    ext ξ (suc x) = suc (ξ x)
+
+    rename : Renaming → Term → Term
+    rename ξ ⋆ = ⋆
+    rename ξ mult = mult
+    rename ξ (ρ ₘ) = ρ ₘ
+    rename ξ (p ⟪ b ⟫ q) = (rename ξ p) ⟪ b ⟫ (rename ξ q)
+    rename ξ (b ⟦ p ⟧∶ A ⇒ B) = b ⟦ rename ξ p ⟧∶ rename ξ A ⇒ (rename (ext ξ) B)
+    rename ξ (` x) = ` ξ x
+    rename ξ (s ∙ t) = rename ξ s ∙ rename ξ t  
+
+    ⇑ : Subst → Subst
+    ⇑ σ zero = ` 0
+    ⇑ σ (suc x) = rename suc (σ x) 
+
+    _>>_ : Subst → Subst → Subst
+    _[_] : Term → Subst → Term
+
+    (σ >> τ) x = (σ x) [ τ ]
+
+    ⋆ [ σ ] = ⋆
+    mult [ σ ] = mult
+    (ρ ₘ) [ σ ] = ρ ₘ
+    (p ⟪ b ⟫ q) [ σ ] = (p [ σ ]) ⟪ b ⟫ (q [ σ ])
+    (b ⟦ p ⟧∶ A ⇒ B) [ σ ] = b ⟦ p [ σ ] ⟧∶ (A [ σ ]) ⇒ (B [ ⇑ σ ])
+    (` x) [ σ ] = σ x
+    (s ∙ t) [ σ ] = (s [ σ ]) ∙ (t [ σ ]) 
+
+
+    sub-head : ∀ t σ → (` 0) [ t · σ ] ≡ t 
+    sub-head t σ = refl
+
+    sub-tail : ∀ t σ → (↑ >> (t · σ)) ≡ σ
+    sub-tail t σ = extensionality λ x → refl
+
+    sub-η : ∀ σ → ((` 0) [ σ ]) · (↑ >> σ) ≡ σ  
+    sub-η σ = extensionality lem 
         where
-            ≤-lem : ∀ {a b : ℕ} (lt₁ : a ≤ b) (lt₂ : a ≤ b) → lt₁ ≡ lt₂ 
-            ≤-lem z≤n z≤n = refl
-            ≤-lem (s≤s lt₁) (s≤s lt₂) = cong (s≤s) (≤-lem lt₁ lt₂)
+        lem : ∀ x → (((` 0) [ σ ]) · (↑ >> σ)) x ≡ σ x
+        lem zero = refl
+        lem (suc x) = refl
 
-            conv : ∀ {n c a} {x y : a < n} → NoVar n c (` x) → NoVar n c (` y)  
-            conv {x = x} {y = y} nv rewrite ≤-lem x y = nv  
-    no-var-incr (s ∙ t) k≤c c<r = novar-app (no-var-incr s k≤c c<r) (no-var-incr t k≤c c<r)
+    z-shift : (` 0) · ↑ ≡ ids  
+    z-shift = extensionality lem 
+        where
+        lem : ∀ x → ((` 0) · ↑) x ≡ ids x
+        lem zero = refl
+        lem (suc x) = refl
 
-    no-var-incr-step : ∀ {t : Term n} → NoVar n c t → k ≤ suc c → NoVar (suc n) (suc c) (↑ 1 k t)
-    no-var-incr-step novar-star k≤c = novar-star
-    no-var-incr-step novar-mult k≤c = novar-mult
-    no-var-incr-step novar-quant k≤c = novar-quant
-    no-var-incr-step (novar-plus nvp nvq) k≤c = novar-plus (no-var-incr-step nvp k≤c) (no-var-incr-step nvq k≤c) 
-    no-var-incr-step (novar-times nvp nvq) k≤c = novar-times (no-var-incr-step nvp k≤c) (no-var-incr-step nvq k≤c) 
-    no-var-incr-step (novar-pi nvp nvA refl nvB) k≤c = novar-pi (no-var-incr-step nvp k≤c) (no-var-incr-step nvA k≤c) refl (no-var-incr-step nvB (s≤s k≤c)) -- (no-var-incr-step nvB) 
-    no-var-incr-step (novar-lam nvp nvA refl nvB) k≤c = novar-lam (no-var-incr-step nvp k≤c) (no-var-incr-step nvA k≤c) refl (no-var-incr-step nvB (s≤s k≤c)) -- (no-var-incr-step nvB) 
-    no-var-incr-step {k = k} (novar-var n′ n′≢c x) k≤c with n′ <? k 
-    ... | yes n′<k = novar-var n′ (m<n⇒m≢n (≤-trans n′<k k≤c)) (≤-step x) 
-    ... | no n′>k = novar-var (suc n′) (n′≢c ∘ suc-injective) (s≤s x) 
-    no-var-incr-step (novar-app nvs nvt) k≤c = novar-app (no-var-incr-step nvs k≤c) (no-var-incr-step nvt k≤c)
+    sub-idL : ∀ σ → ids >> σ ≡ σ 
+    sub-idL σ = extensionality λ x → refl
+
+    sub-dist : ∀ σ σ′ t → (t · σ) >> σ′ ≡ (t [ σ′ ]) · (σ >> σ′)
+    sub-dist σ σ′ t = extensionality lem
+        where
+        lem : ∀ x → ((t · σ) >> σ′) x ≡ ((t [ σ′ ]) · (σ >> σ′)) x
+        lem zero = refl
+        lem (suc x) = refl
+
+    ren-ext : ∀ ξ → ren (ext ξ) ≡ ⇑ (ren ξ)     
+    ren-ext ξ = extensionality lem 
+        where
+        lem : ∀ x → ren (ext ξ) x ≡ ⇑ (ren ξ) x
+        lem zero = refl
+        lem (suc x) = refl
+
+    rename-subst-ren : ∀ ξ t → rename ξ t ≡ t [ ren ξ ]  
+    rename-subst-ren ξ ⋆ = refl
+    rename-subst-ren ξ mult = refl
+    rename-subst-ren ξ (x ₘ) = refl
+    rename-subst-ren ξ (p ⟪ b ⟫ q) = cong₂ _⟪ b ⟫_ (rename-subst-ren ξ p) (rename-subst-ren ξ q)
+    rename-subst-ren ξ (b ⟦ p ⟧∶ A ⇒ B) = 
+        begin
+            (b ⟦ rename ξ p ⟧∶ rename ξ A ⇒ rename (ext ξ) B)
+        ≡⟨ cong₂ (λ p A → b ⟦ p ⟧∶ A ⇒ rename (ext ξ) B) (rename-subst-ren ξ p) (rename-subst-ren ξ A) ⟩
+            (b ⟦ p [ ren ξ ] ⟧∶ A [ ren ξ ] ⇒ rename (ext ξ) B)
+        ≡⟨ cong (λ B → b ⟦ p [ ren ξ ] ⟧∶ A [ ren ξ ] ⇒ B) (rename-subst-ren (ext ξ) B) ⟩
+            (b ⟦ p [ ren ξ ] ⟧∶ A [ ren ξ ] ⇒ (B [ ren (ext ξ) ]))
+        ≡⟨ cong (λ σ → b ⟦ p [ ren ξ ] ⟧∶ A [ ren ξ ] ⇒ (B [ σ ])) (ren-ext ξ) ⟩
+            (b ⟦ p [ ren ξ ] ⟧∶ A [ ren ξ ] ⇒ (B [ ⇑ (ren ξ) ]))
+       ∎ 
+    rename-subst-ren ξ (` x) = refl
+    rename-subst-ren ξ (s ∙ t) = cong₂ _∙_ (rename-subst-ren ξ s) (rename-subst-ren ξ t) 
+
+    ren-shift : ren suc ≡ ↑  
+    ren-shift = extensionality lem 
+        where
+        lem : ∀ x → ren suc x ≡ ↑ x 
+        lem zero = refl
+        lem (suc x) = refl
+
+    rename-shift : ∀ t → rename suc t ≡ t [ ↑ ]
+    rename-shift t = 
+        begin
+            rename suc t
+        ≡⟨ rename-subst-ren suc t ⟩
+            t [ ren suc ]
+        ≡⟨ cong (λ σ → t [ σ ]) ren-shift ⟩
+            t [ ↑ ]
+        ∎
+    
+    ext-cons-shift : ∀ σ → ⇑ σ ≡ ((` 0) · (σ >> ↑))
+    ext-cons-shift σ = extensionality lem
+        where
+        lem : ∀ x → ⇑ σ x ≡ ((` 0) · (σ >> ↑)) x
+        lem zero = refl
+        lem (suc x) = rename-subst-ren suc (σ x)
 
 
-    no-var-subst : ∀ {a} → (t : Term n) → NoVar n c a → NoVar n c (t [ a / c ])
-    no-var-subst ⋆ nva = novar-star
-    no-var-subst mult nva = novar-mult
-    no-var-subst (x ₘ) nva = novar-quant
-    no-var-subst (p +ₘ q) nva = novar-plus (no-var-subst p nva) (no-var-subst q nva)
-    no-var-subst (p ·ₘ q) nva = novar-times (no-var-subst p nva) (no-var-subst q nva) 
-    no-var-subst (⦅[ p ] refl ∶ A ⦆⇒ B) nva = novar-pi (no-var-subst p nva) (no-var-subst A nva) refl (no-var-subst B (no-var-incr-step nva z≤n))
-    no-var-subst (ƛ[ p ] refl ∶ A ⇒ B) nva = novar-lam (no-var-subst p nva) (no-var-subst A nva) refl (no-var-subst B (no-var-incr-step nva z≤n))
-    no-var-subst {c = c} (`_ {n′ = x} s) nva with x ≟ c 
-    ... | yes refl = nva
-    ... | no x≠c = novar-var x x≠c s
-    no-var-subst (s ∙ t) nva = novar-app (no-var-subst s nva) (no-var-subst t nva)
+    sub-bind : ∀ p A B b σ → ((b ⟦ p ⟧∶ A ⇒ B) [ σ ]) ≡ (b ⟦ p [ σ ] ⟧∶ A [ σ ] ⇒ (B [ (` 0) · (σ >> ↑) ]))
+    sub-bind p A B b σ = cong (λ σ′ → b ⟦ p [ σ ] ⟧∶ A [ σ ] ⇒ (B [ σ′ ])) (ext-cons-shift σ)
 
-    no-var-subst-eq : ∀ a c → {t : Term n} → NoVar n c t → t [ a / c ] ≡ t
-    no-var-subst-eq a c novar-star = refl
-    no-var-subst-eq a c novar-mult = refl
-    no-var-subst-eq a c novar-quant = refl
-    no-var-subst-eq a c (novar-plus nvp nvq) 
-        rewrite no-var-subst-eq a c nvp
-        rewrite no-var-subst-eq a c nvq
-        = refl
-    no-var-subst-eq a c (novar-times nvp nvq)
-        rewrite no-var-subst-eq a c nvp
-        rewrite no-var-subst-eq a c nvq
-        = refl 
-    no-var-subst-eq a c (novar-pi nvp nvA refl nvB) 
-        rewrite no-var-subst-eq a c nvp 
-        rewrite no-var-subst-eq a c nvA 
-        rewrite no-var-subst-eq (↑ 1 0 a) (suc c) nvB
-        = refl
-    no-var-subst-eq a c (novar-lam nvp nvA refl nvB) 
-        rewrite no-var-subst-eq a c nvp 
-        rewrite no-var-subst-eq a c nvA 
-        rewrite no-var-subst-eq (↑ 1 0 a) (suc c) nvB
-        = refl
-    no-var-subst-eq a c (novar-var n′ n′≢c n′<c) with n′ ≟ c
-    ... | yes n′≡c = contradiction n′≡c n′≢c
-    ... | no _ = refl
-    no-var-subst-eq a c (novar-app nvs nvt) 
-        rewrite no-var-subst-eq a c nvs
-        rewrite no-var-subst-eq a c nvt
-        = refl
+    ⇑-ids : ⇑ ids ≡ ids  
+    ⇑-ids = extensionality lem 
+        where
+        lem : ∀ x → ⇑ ids x ≡ ids x 
+        lem zero = refl
+        lem (suc x) = refl
+    
 
-    +-injective : ∀ {i m n} → i + m ≡ i + n → m ≡ n
-    +-injective {i = zero} i+m≡i+n = i+m≡i+n
-    +-injective {i = suc i} i+m≡i+n = +-injective (suc-injective i+m≡i+n)
+    sub-id : ∀ t → t [ ids ] ≡ t
+    sub-id ⋆ = refl
+    sub-id mult = refl
+    sub-id (x ₘ) = refl
+    sub-id (p ⟪ b ⟫ q) = cong₂ _⟪ b ⟫_ (sub-id p) (sub-id q)  
+    sub-id (b ⟦ p ⟧∶ A ⇒ B) = 
+        begin
+            b ⟦ p [ ids ] ⟧∶ (A [ ids ]) ⇒ (B [ ⇑ ids ])
+        ≡⟨ cong₂ (λ p A → b ⟦ p ⟧∶ A ⇒ (B [ ⇑ ids ])) (sub-id p) (sub-id A) ⟩
+            b ⟦ p ⟧∶ A ⇒ (B [ ⇑ ids ])
+        ≡⟨ cong (λ σ → b ⟦ p ⟧∶ A ⇒ (B [ σ ])) ⇑-ids  ⟩
+            b ⟦ p ⟧∶ A ⇒ (B [ ids ])
+        ≡⟨ cong (λ B → b ⟦ p ⟧∶ A ⇒ B) (sub-id B) ⟩
+            b ⟦ p ⟧∶ A ⇒ B
+        ∎  
+    sub-id (` x) = refl
+    sub-id (s ∙ t) = cong₂ _∙_ (sub-id s) (sub-id t)
 
-    same-pi : ∀ {n} {p A : Term n} {a} {B : Term a} (eq₁ : a ≡ suc n) (eq₂ : a ≡ suc n) → (⦅[ p ] eq₁ ∶ A ⦆⇒ B) ≡ (⦅[ p ] eq₂ ∶ A ⦆⇒ B)
-    same-pi refl refl = refl
+    rename-id : ∀ t → rename id t ≡ t      
+    rename-id t = 
+        begin
+            rename id t
+        ≡⟨ rename-subst-ren id t ⟩
+            t [ ren id ]  
+        ≡⟨ sub-id t ⟩
+            t
+        ∎ 
+    
+    sub-idR : ∀ σ → σ >> ids ≡ σ    
+    sub-idR σ = 
+        begin
+            σ >> ids 
+        ≡⟨ refl ⟩
+            (λ t → (σ t) [ ids ])
+        ≡⟨ extensionality (λ x → sub-id (σ x)) ⟩ 
+            σ 
+        ∎
+    
+    compose-ext : ∀ ξ ξ′ → ext ξ ∘ ext ξ′ ≡ ext (ξ ∘ ξ′) 
+    compose-ext ξ ξ′ = extensionality lem
+        where
+        lem : ∀ x → (ext ξ ∘ ext ξ′) x ≡ ext (ξ ∘ ξ′) x
+        lem zero = refl
+        lem (suc x) = refl
+    
+    compose-rename : ∀ ξ ξ′ t → (rename ξ ∘ rename ξ′) t ≡ rename (ξ ∘ ξ′) t  
+    compose-rename ξ ξ′ ⋆ = refl
+    compose-rename ξ ξ′ mult = refl
+    compose-rename ξ ξ′ (ρ ₘ) = refl
+    compose-rename ξ ξ′ (p ⟪ b ⟫ q) = cong₂ _⟪ b ⟫_ (compose-rename ξ ξ′ p) (compose-rename ξ ξ′ q)
+    compose-rename ξ ξ′ (b ⟦ p ⟧∶ A ⇒ B) = 
+        begin
+            (rename ξ ∘ rename ξ′) (b ⟦ p ⟧∶ A ⇒ B)
+        ≡⟨ cong₂ (λ p A → b ⟦ p ⟧∶ A ⇒ rename (ext ξ) (rename (ext ξ′) B)) (compose-rename ξ ξ′ p) (compose-rename ξ ξ′ A) ⟩
+            b ⟦ rename (ξ ∘ ξ′) p ⟧∶ (rename (ξ ∘ ξ′) A) ⇒ rename (ext ξ) (rename (ext ξ′) B) 
+        ≡⟨ cong (λ B → b ⟦ rename (ξ ∘ ξ′) p ⟧∶ rename (ξ ∘ ξ′) A ⇒ B) (compose-rename (ext ξ) (ext ξ′) B) ⟩
+            b ⟦ rename (ξ ∘ ξ′) p ⟧∶ (rename (ξ ∘ ξ′) A) ⇒ (rename ((ext ξ) ∘ (ext ξ′)) B)
+        ≡⟨ cong (λ B → b ⟦ rename (ξ ∘ ξ′) p ⟧∶ rename (ξ ∘ ξ′) A ⇒ B) (cong (λ ξ → rename ξ B) (compose-ext ξ ξ′)) ⟩
+            b ⟦ rename (ξ ∘ ξ′) p ⟧∶ rename (ξ ∘ ξ′)  A ⇒ rename (ext (ξ ∘ ξ′)) B
+        ∎
+    compose-rename ξ ξ′ (` x) = refl
+    compose-rename ξ ξ′ (s ∙ t) = cong₂ _∙_ (compose-rename ξ ξ′ s) (compose-rename ξ ξ′ t) 
 
-    same-lam : ∀ {n} {p A : Term n} {a} {B : Term a} (eq₁ : a ≡ suc n) (eq₂ : a ≡ suc n) → (ƛ[ p ] eq₁ ∶ A ⇒ B) ≡ (ƛ[ p ] eq₂ ∶ A ⇒ B)
-    same-lam refl refl = refl
+    commute-subst-rename : ∀ σ ξ t → (∀ x → ⇑ σ (ξ x) ≡ rename ξ (σ x)) → (rename ξ t) [ ⇑ σ ] ≡ rename ξ (t [ σ ]) 
+    commute-subst-rename σ ξ ⋆ cv = refl
+    commute-subst-rename σ ξ mult cv = refl
+    commute-subst-rename σ ξ (x ₘ) cv = refl
+    commute-subst-rename σ ξ (p ⟪ x ⟫ q) cv = cong₂ _⟪ x ⟫_ (commute-subst-rename σ ξ p cv) (commute-subst-rename σ ξ q cv)
+    commute-subst-rename σ ξ (b ⟦ p ⟧∶ A ⇒ B) cv = 
+        begin
+            (b ⟦ rename ξ p [ ⇑ σ ] ⟧∶ rename ξ A [ ⇑ σ ] ⇒ (rename (ext ξ) B [ ⇑ (⇑ σ) ]))
+        ≡⟨ cong₂ (λ p A → b ⟦ p ⟧∶ A ⇒ (rename (ext ξ) B [ ⇑ (⇑ σ) ])) (commute-subst-rename σ ξ p cv) (commute-subst-rename σ ξ A cv) ⟩
+            (b ⟦ rename ξ (p [ σ ]) ⟧∶ rename ξ (A [ σ ]) ⇒ (rename (ext ξ) B [ ⇑ (⇑ σ) ]))
+        ≡⟨ cong (λ B → (b ⟦ rename ξ (p [ σ ]) ⟧∶ rename ξ (A [ σ ]) ⇒ B)) (commute-subst-rename (⇑ σ) (ext ξ) B lem) ⟩
+            (b ⟦ rename ξ (p [ σ ]) ⟧∶ rename ξ (A [ σ ]) ⇒ rename (ext ξ) (B [ ⇑ σ ]))
+        ∎
+        where
+        lem : ∀ x → ⇑ (⇑ σ) (ext ξ x) ≡ rename (ext ξ) (⇑ σ x)
+        lem zero = refl
+        lem (suc x) = 
+            begin
+                ⇑ (⇑ σ) (ext ξ (suc x))
+            ≡⟨ refl ⟩ 
+                rename suc (⇑ σ (ξ x))  
+            ≡⟨ cong (rename suc) (cv x) ⟩ 
+                rename suc (rename ξ (σ x))
+            ≡⟨ compose-rename suc ξ (σ x) ⟩ 
+                rename (suc ∘ ξ) (σ x)
+            ≡⟨ cong (λ ξ → rename ξ (σ x)) refl ⟩
+                rename ((ext ξ) ∘ suc) (σ x)
+            ≡⟨ sym (compose-rename (ext ξ) suc (σ x)) ⟩
+                rename (ext ξ) (rename suc (σ x))
+            ∎
+    commute-subst-rename σ ξ (` x) cv = cv x
+    commute-subst-rename σ ξ (s ∙ t) cv = cong₂ _∙_ (commute-subst-rename σ ξ s cv) (commute-subst-rename σ ξ t cv)
 
-    incr-join : ∀ {i c} → (t : Term n) → ↑ 1 c (↑ i c t) ≡ ↑ (suc i) c t
-    incr-join ⋆ = refl
-    incr-join mult = refl
-    incr-join (x ₘ) = refl
-    incr-join {i = i} {c = c} (p +ₘ q) 
-        rewrite incr-join {i = i} {c = c} p
-        rewrite incr-join {i = i} {c = c} q
-        = refl 
-    incr-join {i = i} {c = c} (p ·ₘ q) 
-        rewrite incr-join {i = i} {c = c} p
-        rewrite incr-join {i = i} {c = c} q
-        = refl
-    incr-join {n = n} {i = i} {c = c} (⦅[ p ] eq ∶ A ⦆⇒ B) 
-        rewrite incr-join {i = i} {c = c} p
-        rewrite incr-join {i = i} {c = c} A 
-        rewrite incr-join {i = i} {c = suc c} B 
-        rewrite same-pi {p = ↑ (suc i) c p} {A = ↑ (suc i) c A} {B = ↑ (suc i) (suc c) B} (trans (cong (_+_ 1) (trans (cong (_+_ i) eq) (+-suc i n))) refl) (trans (cong (_+_ (suc i)) eq) (cong suc (+-suc i n))) 
-        = refl 
-    incr-join {n = n} {i = i} {c = c} (ƛ[ p ] eq ∶ A ⇒ B)
-        rewrite incr-join {i = i} {c = c} p
-        rewrite incr-join {i = i} {c = c} A 
-        rewrite incr-join {i = i} {c = suc c} B 
-        rewrite same-lam {p = ↑ (suc i) c p} {A = ↑ (suc i) c A} {B = ↑ (suc i) (suc c) B} (trans (cong (_+_ 1) (trans (cong (_+_ i) eq) (+-suc i n))) refl) (trans (cong (_+_ (suc i)) eq) (cong suc (+-suc i n))) 
-        = refl
-    incr-join {n = n} {c = c} (`_ {n′ = n′} x) with n′ <? c
-    incr-join {n = n} {c = c} (`_ {n′ = n′} x) | yes _ with n′ <? c 
-    incr-join {n = n} {c = c} (`_ {n′ = n′} x) | yes _  | yes _ = refl
-    incr-join {n = n} {c = c} (`_ {n′ = n′} x) | yes p  | no ¬p = contradiction p ¬p
-    incr-join {n = n} {i = i} {c = c} (`_ {n′ = n′} x) | no _ with i + n′ <? c 
-    incr-join {n = n} {i = i} {c = c} (`_ {n′ = n′} x) | no ¬n′<c | yes i+n<c = 
-        let i+sucn≤c = subst (_≤ c) (sym $ +-suc i n′) i+n<c in  
-        let n′<c = m+n≤o⇒n≤o i i+sucn≤c in 
-        contradiction n′<c ¬n′<c 
-    incr-join {n = n} {c = c} (`_ {n′ = n′} x) | no _ | no _ = refl 
-    incr-join {i = i} {c = c} (s ∙ t) 
-        rewrite incr-join {i = i} {c = c} s
-        rewrite incr-join {i = i} {c = c} t 
-        = refl 
+    ⇑-seq : ∀ σ σ′ → ⇑ σ >> ⇑ σ′ ≡ ⇑ (σ >> σ′) 
+    ⇑-seq σ σ′ = extensionality lem 
+        where
+        lem : ∀ x → (⇑ σ >> ⇑ σ′) x ≡ (⇑ (σ >> σ′)) x
+        lem zero = refl
+        lem (suc x) = 
+            begin 
+                (⇑ σ >> ⇑ σ′) (suc x)
+            ≡⟨ refl ⟩
+                rename suc (σ x) [ ⇑ σ′ ]
+            ≡⟨ commute-subst-rename σ′ suc (σ x) (λ x → refl) ⟩
+                rename suc (σ x [ σ′ ])
+            ≡⟨ refl ⟩
+                (⇑ (σ >> σ′)) (suc x)
+            ∎
+        
+    sub-sub : ∀ σ σ′ t → t [ σ ] [ σ′ ] ≡ t [ σ >> σ′ ]  
+    sub-sub σ σ′ ⋆ = refl
+    sub-sub σ σ′ mult = refl
+    sub-sub σ σ′ (x ₘ) = refl
+    sub-sub σ σ′ (p ⟪ b ⟫ q) = cong₂ _⟪ b ⟫_ (sub-sub σ σ′ p) (sub-sub σ σ′ q)
+    sub-sub σ σ′ (b ⟦ p ⟧∶ A ⇒ B) = 
+        begin
+            (b ⟦ (p [ σ ]) [ σ′ ] ⟧∶ (A [ σ ]) [ σ′ ] ⇒ ((B [ ⇑ σ ]) [ ⇑ σ′ ]))
+        ≡⟨ cong₂ (λ p A → b ⟦ p ⟧∶ A ⇒ ((B [ ⇑ σ ]) [ ⇑ σ′ ])) (sub-sub σ σ′ p) (sub-sub σ σ′ A) ⟩ 
+            (b ⟦ p [ σ >> σ′ ] ⟧∶ A [ σ >> σ′ ] ⇒ ((B [ ⇑ σ ]) [ ⇑ σ′ ]))
+        ≡⟨ cong (λ B → b ⟦ p [ σ >> σ′ ] ⟧∶ A [ σ >> σ′ ] ⇒ B) (sub-sub (⇑ σ) (⇑ σ′) B) ⟩ 
+            (b ⟦ p [ σ >> σ′ ] ⟧∶ A [ σ >> σ′ ] ⇒ (B [ ⇑ σ >> ⇑ σ′ ]))
+        ≡⟨ cong (λ B → b ⟦ p [ σ >> σ′ ] ⟧∶ A [ σ >> σ′ ] ⇒ B) (cong (B [_]) (⇑-seq σ σ′)) ⟩
+            (b ⟦ p [ σ >> σ′ ] ⟧∶ A [ σ >> σ′ ] ⇒ (B [ ⇑ (σ >> σ′) ]))
+        ∎
+    sub-sub σ σ′ (` x) = refl
+    sub-sub σ σ′ (s ∙ t) = cong₂ _∙_ (sub-sub σ σ′ s) (sub-sub σ σ′ t)
 
-    -- type is wrong. not sure what right type is
-    -- incr-subst : ∀ {i x} (a b : Term n) → ↑ i 0 (a [ b / x ]) ≡ (↑ i 0 a) [ ↑ i 0 b / (i + x) ]
-    -- incr-subst ⋆ b = {!   !}
-    -- incr-subst mult b = {!   !}
-    -- incr-subst (x ₘ) b = {!   !}
-    -- incr-subst (a +ₘ a₁) b = {!   !}
-    -- incr-subst (a ·ₘ a₁) b = {!   !}
-    -- incr-subst {i = i} {x = x} (⦅[ p ] refl ∶ A ⦆⇒ B) b 
-    --     rewrite incr-subst {i = i} {x = x} p b 
-    --     rewrite incr-subst {i = i} {x = x} A b 
-    --     with pf ← incr-subst {i = suc i} {x = x} B (↑ 1 0 b)
-    --     = {! ((⦅[ p ] eq ∶ A ⦆⇒ B) [ b / x ])  !}
-    -- incr-subst (ƛ[ p ] eq ∶ A ⇒ B) b = {!   !}
-    -- incr-subst {x = x} (`_ {n′ = n′} _) b with n′ ≟ x 
-    -- incr-subst {x = x} (`_ {n′ = n′} _) b | yes _ with n′ <? 0 
-    -- incr-subst (`_ {n′ = n′} _) b | yes refl | yes () 
-    -- incr-subst {i = i} {x = x} (`_ {n′ = n′} _) b | yes _ | no ¬n′<c with i + n′ ≟ i + x 
-    -- incr-subst {x = x} (`_ {n′ = n′} _) b | yes _ | no ¬n′<c | yes _ = refl
-    -- incr-subst {x = x} (`_ {n′ = n′} n′<n) b | yes refl | no ¬n′<c | no i+n≢i+x = ⊥-elim (i+n≢i+x refl)
-    -- incr-subst {i = i} {x = x} (`_ {n′ = n′} _) b | no _ with i + n′ ≟ i + x 
-    -- incr-subst {i = i} {x = x} (`_ {n′ = n′} _) b | no n′≢x | yes i+n′≡i+x = ⊥-elim (n′≢x (+-injective i+n′≡i+x))
-    -- incr-subst {i = i} {x = x} (`_ {n′ = n′} _) b | no _ | no _ = refl 
-    -- incr-subst (a ∙ a₁) b = {!   !}
+    sub-assoc : ∀ σ₁ σ₂ σ₃ → (σ₁ >> σ₂) >> σ₃ ≡ σ₁ >> (σ₂ >> σ₃)
+    sub-assoc σ₁ σ₂ σ₃ = extensionality lem  
+        where
+        lem : ∀ x → ((σ₁ >> σ₂) >> σ₃) x ≡ (σ₁ >> (σ₂ >> σ₃)) x
+        lem x = 
+            begin
+                ((σ₁ x [ σ₂ ]) [ σ₃ ])
+            ≡⟨ sub-sub σ₂ σ₃ (σ₁ x) ⟩
+                (σ₁ x [ σ₂ >> σ₃ ])
+            ∎
 
-    subst-lemma : 
-        ∀ {x y : ℕ} → {a b : Term n}
-        → (t : Term n) 
-        → NoVar n x b
-        → x ≢ y
-        → t [ b / y ] [ a [ b / y ] / x ] ≡ t [ a / x ] [ b / y ] 
-    subst-lemma ⋆ nv x≢y = {!   !}
-    subst-lemma mult nv x≢y = {!   !}
-    subst-lemma (x ₘ) nv x≢y = {!   !}
-    subst-lemma (t +ₘ t₁) nv x≢y = {!   !}
-    subst-lemma (t ·ₘ t₁) nv x≢y = {!   !}
-    subst-lemma {y = y} {a = a} {b = b} (⦅[ p ] refl ∶ A ⦆⇒ B) nv x≢y 
-        rewrite subst-lemma {a = a} {b = b} p nv x≢y 
-        rewrite subst-lemma {a = a} {b = b} A nv x≢y 
-        -- rewrite incr-subst {i = 1} {x = y} a b  
-        -- rewrite subst-lemma {a = ↑ 1 0 a} {b = ↑ 1 0 b} B (no-var-incr-step nv z≤n) (x≢y ∘ suc-injective) 
-        = {!   !}
-    subst-lemma (ƛ[ p ] refl ∶ A ⇒ B) nv x≢y = {!   !}
-    subst-lemma {x = x} {y = y}  (`_ {n′ = n′} n′<c) nv x≢y with n′ ≟ y 
-    subst-lemma {x = x} {y = y} (`_ {n′ = n′} n′<c) nv x≢y | yes _ with n′ ≟ x 
-    subst-lemma {x = x} {y = y} (`_ {n′ = n′} n′<c) nv x≢y | yes refl | yes refl = ⊥-elim (x≢y refl)
-    subst-lemma {x = x} {y = y} (`_ {n′ = n′} n′<c) nv x≢y | yes _ | no _ with n′ ≟ y
-    subst-lemma {x = x} {y = y} {a = a} {b = b} (`_ {n′ = n′} n′<c) nv x≢y | yes _ | no _ | yes _ 
-        rewrite no-var-subst-eq (a [ b / y ]) x nv = refl 
-    subst-lemma {x = x} {y = y} (`_ {n′ = n′} n′<c) nv x≢y | yes n′≡y | no _ | no n′≢y = contradiction n′≡y n′≢y
-    subst-lemma {x = x} {y = y} (`_ {n′ = n′} n′<c) nv x≢y | no _ with n′ ≟ x 
-    subst-lemma {x = x} {y = y} (`_ {n′ = n′} n′<c) nv x≢y | no _ | yes _ = refl
-    subst-lemma {x = x} {y = y} (`_ {n′ = n′} n′<c) nv x≢y | no _ | no _ with n′ ≟ y 
-    subst-lemma {x = x} {y = y} (`_ {n′ = n′} n′<c) nv x≢y | no n′≢y | no _ | yes n′≡y = contradiction n′≡y n′≢y 
-    subst-lemma {x = x} {y = y} (`_ {n′ = n′} n′<c) nv x≢y | no _ | no _ | no _ = refl
-    subst-lemma {a = a} {b = b} (s ∙ t) nv x≢y 
-        rewrite subst-lemma {a = a} {b = b} s nv x≢y 
-        rewrite subst-lemma {a = a} {b = b} t nv x≢y = refl
+
+    subst-lemma : ∀ σ s t → s [ ⇑ σ ] [ (t [ σ ]) · ids ] ≡ s [ t · ids ] [ σ ]
+    subst-lemma σ s t = 
+        begin
+            (s [ ⇑ σ ]) [ (t [ σ ]) · ids ]
+        ≡⟨ sub-sub (⇑ σ) ((t [ σ ]) · ids) s ⟩
+            s [ ⇑ σ >> ((t [ σ ]) · ids) ] 
+        ≡⟨ cong (s [_]) (cong₂ (_>>_) (ext-cons-shift σ) refl) ⟩
+            s [ ((` 0) · (σ >> ↑)) >> ((t [ σ ]) · ids) ]
+        ≡⟨ cong (s [_]) (sub-dist (σ >> ↑) ((t [ σ ]) · ids) (` 0)) ⟩
+            s [ (t [ σ ]) · ((σ >> ↑) >> ((t [ σ ]) · ids)) ]
+        ≡⟨ cong (λ τ → s [ (t [ σ ]) · τ ]) (sub-assoc σ ↑ ((t [ σ ]) · ids)) ⟩
+            s [ (t [ σ ]) · (σ >> (↑ >> ((t [ σ ]) · ids))) ]
+        ≡⟨ refl ⟩
+            (s [ (t [ σ ]) · (σ >> ids) ])
+        ≡⟨ cong (λ τ → s [ (t [ σ ]) · τ ]) (sub-idR σ) ⟩
+            (s [ (t [ σ ]) · σ ])
+        ≡⟨ refl ⟩
+            (s [ (t [ σ ]) · (ids >> σ) ])
+        ≡⟨ cong (s [_]) (sym (sub-dist ids σ t)) ⟩
+            (s [ (t · ids) >> σ ])
+        ≡⟨ sym (sub-sub (t · ids) σ s) ⟩
+            (s [ t · ids ]) [ σ ]
+        ∎
+

@@ -7,18 +7,23 @@ module GTTM.Syntax (Quant : Set) where
         variable
             n n′ : ℕ
 
-    data Term : ℕ → Set 
+    data Term : Set 
 
-    Type : ℕ → Set
+    Type : Set 
     Type = Term
 
+    data Binder : Set where
+        ƛ Π : Binder
+
+    data MBinop : Set where
+        +ₘ ·ₘ : MBinop
+
     data Term where
-        ⋆ : Term n 
-        mult : Term n
-        _ₘ : Quant → Term n
-        _+ₘ_ : Term n → Term n → Term n 
-        _·ₘ_ : Term n → Term n → Term n 
-        ⦅[_]_∶_⦆⇒_ : Term n → n′ ≡ suc n → Term n → Term n′ → Term n
-        ƛ[_]_∶_⇒_ : Term n → n′ ≡ suc n → Term n → Term n′ → Term n
-        `_ : n′ < n → Term n 
-        _∙_ : Term n → Term n → Term n
+        ⋆ : Term  
+        mult : Term 
+        _ₘ : Quant → Term 
+        _⟪_⟫_ : Term → MBinop → Term → Term 
+        _⟦_⟧∶_⇒_ : Binder → Term → Term → Term → Term
+        `_ : ℕ → Term 
+        _∙_ : Term → Term → Term
+

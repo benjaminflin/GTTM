@@ -9,66 +9,66 @@ module GTTM.Context (Quant : Set) (IsQuant : IsQuantity Quant) where
     open import Data.Product
     open import GTTM.Substitution Quant IsQuant
 
-    private 
-        variable    
-            n : ℕ
+    -- private 
+    --     variable    
+    --         n : ℕ
 
-    data PreContext : ℕ → Set where
-        ∅ₚ : PreContext n
-        _,,_ : PreContext n → Type n → PreContext (suc n)
+    -- data PreContext : ℕ → Set where
+    --     ∅ₚ : PreContext n
+    --     _,,_ : PreContext n → Type n → PreContext (suc n)
 
-    data Context : ℕ → Set where 
-        ∅ : Context n
-        _,[_]_ : Context n → Term n → Type n → Context (suc n)
+    -- data Context : ℕ → Set where 
+    --     ∅ : Context n
+    --     _,[_]_ : Context n → Term n → Type n → Context (suc n)
 
-    private
-        variable
-            p q r s t : Term n
-            S T A B : Type n
-            Γ Γ₁ Γ₂ Γ₃ Δ : Context n
-            Γₚ Δₚ ⌊Γ₁⌋ ⌊Γ₂⌋ : PreContext n
-            ρ ϕ : Quant
+    -- private
+    --     variable
+    --         p q r s t : Term n
+    --         S T A B : Type n
+    --         Γ Γ₁ Γ₂ Γ₃ Δ : Context n
+    --         Γₚ Δₚ ⌊Γ₁⌋ ⌊Γ₂⌋ : PreContext n
+    --         ρ ϕ : Quant
 
-    ⌊_⌋ : Context n → PreContext n
-    ⌊ ∅ ⌋ = ∅ₚ
-    ⌊ Δ ,[ q ] t ⌋ = ⌊ Δ ⌋ ,, t 
+    -- ⌊_⌋ : Context n → PreContext n
+    -- ⌊ ∅ ⌋ = ∅ₚ
+    -- ⌊ Δ ,[ q ] t ⌋ = ⌊ Δ ⌋ ,, t 
 
-    data HasPreContext : (n : ℕ) → Context n → PreContext n → Set where 
-        has-∅ₚ : HasPreContext n ∅ ∅ₚ
-        has-, :  HasPreContext n Γ Γₚ → ∀ p A → HasPreContext (suc n) (Γ ,[ p ] A) (Γₚ ,, A)
+    -- data HasPreContext : (n : ℕ) → Context n → PreContext n → Set where 
+    --     has-∅ₚ : HasPreContext n ∅ ∅ₚ
+    --     has-, :  HasPreContext n Γ Γₚ → ∀ p A → HasPreContext (suc n) (Γ ,[ p ] A) (Γₚ ,, A)
 
-    hasPreContext : (Γ : Context n) → HasPreContext n Γ ⌊ Γ ⌋
-    hasPreContext ∅ = has-∅ₚ
-    hasPreContext (Γ ,[ p ] A) = has-, (hasPreContext Γ) p A
+    -- hasPreContext : (Γ : Context n) → HasPreContext n Γ ⌊ Γ ⌋
+    -- hasPreContext ∅ = has-∅ₚ
+    -- hasPreContext (Γ ,[ p ] A) = has-, (hasPreContext Γ) p A
 
-    hpc→≡ : HasPreContext n Γ Γₚ → ⌊ Γ ⌋ ≡ Γₚ 
-    hpc→≡  has-∅ₚ = refl
-    hpc→≡ (has-, hpc _ A) = cong (_,, A) (hpc→≡ hpc) 
+    -- hpc→≡ : HasPreContext n Γ Γₚ → ⌊ Γ ⌋ ≡ Γₚ 
+    -- hpc→≡  has-∅ₚ = refl
+    -- hpc→≡ (has-, hpc _ A) = cong (_,, A) (hpc→≡ hpc) 
 
-    ≡→hpc : ⌊ Γ ⌋ ≡ Γₚ → HasPreContext n Γ Γₚ    
-    ≡→hpc {Γ = Γ} refl = hasPreContext Γ
+    -- ≡→hpc : ⌊ Γ ⌋ ≡ Γₚ → HasPreContext n Γ Γₚ    
+    -- ≡→hpc {Γ = Γ} refl = hasPreContext Γ
 
-    -- preContextInjective : (⌊Γ₁⌋ , x ∶ A) ≡ (⌊Γ₂⌋ , y ∶ B) → ⌊Γ₁⌋ ≡ ⌊Γ₂⌋
-    -- preContextInjective refl = refl 
+    -- -- preContextInjective : (⌊Γ₁⌋ , x ∶ A) ≡ (⌊Γ₂⌋ , y ∶ B) → ⌊Γ₁⌋ ≡ ⌊Γ₂⌋
+    -- -- preContextInjective refl = refl 
 
-    -- preContextLemma : (⌊Γ₁⌋ , x ∶ A) ≡ (⌊Γ₂⌋ , y ∶ B) → x ≡ y × A ≡ B 
-    -- preContextLemma refl = refl , refl
+    -- -- preContextLemma : (⌊Γ₁⌋ , x ∶ A) ≡ (⌊Γ₂⌋ , y ∶ B) → x ≡ y × A ≡ B 
+    -- -- preContextLemma refl = refl , refl
 
-    -- samePreContext : (Γ₁₂-≡ : ⌊ Γ₁ ⌋ ≡ ⌊ Γ₂ ⌋) → HasPreContext Γ₁ ⌊ Γ₂ ⌋
-    -- samePreContext {Γ₁ = Γ₁} {Γ₂ = Γ₂} Γ₁₂-≡ = subst (HasPreContext Γ₁) Γ₁₂-≡ (hasPreContext Γ₁) 
+    -- -- samePreContext : (Γ₁₂-≡ : ⌊ Γ₁ ⌋ ≡ ⌊ Γ₂ ⌋) → HasPreContext Γ₁ ⌊ Γ₂ ⌋
+    -- -- samePreContext {Γ₁ = Γ₁} {Γ₂ = Γ₂} Γ₁₂-≡ = subst (HasPreContext Γ₁) Γ₁₂-≡ (hasPreContext Γ₁) 
 
     
-    private
-        module Q = IsQuantity IsQuant
+    -- private
+    --     module Q = IsQuantity IsQuant
 
-    infix 50 𝟘_
-    𝟘_ : Context n → Context n
-    𝟘 ∅ = ∅
-    𝟘 (Γ ,[ p ] T) = 𝟘 Γ ,[ Q.zero ₘ ] T
+    -- infix 50 𝟘_
+    -- 𝟘_ : Context n → Context n
+    -- 𝟘 ∅ = ∅
+    -- 𝟘 (Γ ,[ p ] T) = 𝟘 Γ ,[ Q.zero ₘ ] T
 
-    𝟘-idempotent : ∀ (Γ : Context n) → 𝟘 (𝟘 Γ) ≡ 𝟘 Γ
-    𝟘-idempotent ∅ = refl
-    𝟘-idempotent (Γ ,[ p ] T) = cong (_,[ Q.zero ₘ ] T) (𝟘-idempotent Γ)
+    -- 𝟘-idempotent : ∀ (Γ : Context n) → 𝟘 (𝟘 Γ) ≡ 𝟘 Γ
+    -- 𝟘-idempotent ∅ = refl
+    -- 𝟘-idempotent (Γ ,[ p ] T) = cong (_,[ Q.zero ₘ ] T) (𝟘-idempotent Γ)
 
     -- _++_ : Context n → Context n → Context n
     -- Γ₁ ++ ∅ = Γ₁
