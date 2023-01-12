@@ -336,3 +336,16 @@ module GTTM.Substitution (Quant : Set) (IsQuant : IsQuantity Quant) where
             (s [ t · ids ]) [ σ ]
         ∎
 
+    rename-subst-commute : ∀ ξ s t → (rename (ext ξ) s) [ rename ξ t · ids ] ≡ rename ξ (s [ t · ids ])
+    rename-subst-commute ξ s t = 
+        begin
+            (rename (ext ξ) s) [ rename ξ t · ids ]
+        ≡⟨ cong₂ (λ s σ → s [ σ · ids ]) (rename-subst-ren (ext ξ) s) (rename-subst-ren ξ t) ⟩
+            (s [ ren (ext ξ) ]) [ (t [ ren ξ ]) · ids ]
+        ≡⟨ cong (λ σ → s [ σ ] [ (t [ ren ξ ]) · ids ]) (ren-ext ξ) ⟩
+            ((s [ ⇑ (ren ξ) ]) [ (t [ ren ξ ]) · ids ])
+        ≡⟨ subst-lemma (ren ξ) s t ⟩
+            ((s [ t · ids ]) [ ren ξ ])
+        ≡⟨ sym (rename-subst-ren ξ (s [ t · ids ])) ⟩
+            rename ξ (s [ t · ids ])
+        ∎
